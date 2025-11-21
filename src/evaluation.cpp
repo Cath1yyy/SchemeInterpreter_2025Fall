@@ -635,7 +635,7 @@ Value Cons::evalRator(const Value &rand1, const Value &rand2) { // cons
 
     //TODO: To complete the cons logic
     return consValues(rand1, rand2);
-    
+
 }
 
 Value ListFunc::evalRator(const std::vector<Value> &args) { // list function
@@ -650,23 +650,63 @@ Value ListFunc::evalRator(const std::vector<Value> &args) { // list function
 }
 
 Value IsList::evalRator(const Value &rand) { // list?
+
     //TODO: To complete the list? logic
+    Value current = rand;
+    // 遍历cdr链，直到遇到非Pair
+    while (current->v_type == V_PAIR) {
+        Pair* p = dynamic_cast<Pair*>(current.get());
+        current = p->cdr;
+    }
+    // 列表必须以空列表结尾
+    return BooleanV(current->v_type == V_NULL);
+
 }
 
 Value Car::evalRator(const Value &rand) { // car
+
     //TODO: To complete the car logic
+    if (rand->v_type != V_PAIR) {
+        throw RuntimeError("Car requires a pair");
+    }
+    Pair* p = dynamic_cast<Pair*>(rand.get());
+    return p->car;
+
 }
 
 Value Cdr::evalRator(const Value &rand) { // cdr
+
     //TODO: To complete the cdr logic
+    if (rand->v_type != V_PAIR) {
+        throw RuntimeError("Cdr requires a pair");
+    }
+    Pair* p = dynamic_cast<Pair*>(rand.get());
+    return p->cdr;
+
 }
 
 Value SetCar::evalRator(const Value &rand1, const Value &rand2) { // set-car!
+
     //TODO: To complete the set-car! logic
+    if (rand1->v_type != V_PAIR) {
+        throw RuntimeError("Set-car! requires a pair");
+    }
+    Pair* p = dynamic_cast<Pair*>(rand1.get());
+    p->car = rand2;  // 直接修改car指针
+    return VoidV();   // 返回void值
+
 }
 
 Value SetCdr::evalRator(const Value &rand1, const Value &rand2) { // set-cdr!
+
    //TODO: To complete the set-cdr! logic
+   if (rand1->v_type != V_PAIR) {
+        throw RuntimeError("Set-cdr! requires a pair");
+    }
+    Pair* p = dynamic_cast<Pair*>(rand1.get());
+    p->cdr = rand2;  // 直接修改cdr指针
+    return VoidV();   // 返回void值
+
 }
 
 Value IsEq::evalRator(const Value &rand1, const Value &rand2) { // eq?
@@ -720,7 +760,21 @@ Value IsString::evalRator(const Value &rand) { // string?
 }
 
 Value Begin::eval(Assoc &e) {
+
     //TODO: To complete the begin logic
+    if (es.empty()) {
+        return VoidV();  // 空begin返回void
+    }
+    
+    // 初始化result为第一个表达式的值
+    Value result = es[0]->eval(e);
+    
+    // 依次执行剩余的表达式，只保留最后一个结果
+    for (size_t i = 1; i < es.size(); i++) {
+        result = es[i]->eval(e);
+    }
+    return result;
+
 }
 
 Value Quote::eval(Assoc& e) {
@@ -744,28 +798,77 @@ Value If::eval(Assoc &e) {
 }
 
 Value Cond::eval(Assoc &env) {
+
     //TODO: To complete the cond logic
+    // 初始化result为void，如果没有匹配分支则返回void
+    Value result = VoidV();
+    
+    for (auto &clause : clauses) {
+        if (clause.empty()) continue;
+        
+        if (clause.size() == 1) {
+            // 只有条件没有分支，如 (cond (#t))
+            Value test = clause[0]->eval(env);
+            if (test->v_type != V_BOOL || dynamic_cast<Boolean*>(test.get())->b) {
+                return test;  // 返回条件值本身
+            }
+        } else {
+            // 正常分支：条件 + 多个表达式
+            Value test = clause[0]->eval(env);
+            if (test->v_type != V_BOOL || dynamic_cast<Boolean*>(test.get())->b) {
+                // 执行该分支的所有表达式，返回最后一个的值
+                result = clause[1]->eval(env);  // 先初始化result
+                for (size_t i = 2; i < clause.size(); i++) {
+                    result = clause[i]->eval(env);
+                }
+                return result;
+            }
+        }
+    }
+    return result;  // 返回初始化的void值
+
 }
 
 Value Lambda::eval(Assoc &env) { 
+
     //TODO: To complete the lambda logic
+    return ProcedureV(x, e, env);
+
 }
 
-Value Apply::eval(Assoc &e) {
-    if (rator->eval(e)->v_type != V_PROC) {throw RuntimeError("Attempt to apply a non-procedure");}
+Value Apply::eval(Assoc &e) {  //check later!!1
+    Value proc_val = rator->eval(e);
+    if (proc_val->v_type != V_PROC) {
+        throw RuntimeError("Attempt to apply a non-procedure");
+    }
+    //if (rator->eval(e)->v_type != V_PROC) {
+    //    throw RuntimeError("Attempt to apply a non-procedure");
+    //}
 
     //TODO: TO COMPLETE THE CLOSURE LOGIC
-    Procedure* clos_ptr = ;
+    Procedure* clos_ptr = dynamic_cast<Procedure*>(proc_val.get());
     
     //TODO: TO COMPLETE THE ARGUMENT PARSER LOGIC
+    // 对所有的实际参数表达式进行求值，得到实参列表
     std::vector<Value> args;
+    for (auto &expr : rand) {
+        args.push_back(expr->eval(e));
+    }
+    /*std::vector<Value> args;
     if (auto varNode = dynamic_cast<Variadic*>(clos_ptr->e.get())) {
         //TODO
-    }
-    if (args.size() != clos_ptr->parameters.size()) throw RuntimeError("Wrong number of arguments");
+        throw RuntimeError("Invalid procedure object");
+    }*/
+
+    if (args.size() != clos_ptr->parameters.size())
+        throw RuntimeError("Wrong number of arguments");
     
     //TODO: TO COMPLETE THE PARAMETERS' ENVIRONMENT LOGIC
-    Assoc param_env = ;
+    // 扩展环境：在闭包的词法环境基础上，将形参与实参绑定
+    Assoc param_env = clos_ptr->env;
+    for (size_t i = 0; i < clos_ptr->parameters.size(); i++) {
+        param_env = extend(clos_ptr->parameters[i], args[i], param_env);
+    }
 
     return clos_ptr->e->eval(param_env);
 }
@@ -775,11 +878,34 @@ Value Define::eval(Assoc &env) {
 }
 
 Value Let::eval(Assoc &env) {
+
     //TODO: To complete the let logic
+    Assoc new_env = env;
+    for (auto &binding : bind) {
+        Value val = binding.second->eval(env);
+        new_env = extend(binding.first, val, new_env);
+    }
+    return body->eval(new_env);
+
 }
 
 Value Letrec::eval(Assoc &env) {
+
     //TODO: To complete the letrec logic
+    // 先创建占位符绑定
+    Assoc new_env = env;
+    for (auto &binding : bind) {
+        new_env = extend(binding.first, VoidV(), new_env);
+    }
+    
+    // 然后计算实际值
+    for (auto &binding : bind) {
+        Value val = binding.second->eval(new_env);
+        modify(binding.first, val, new_env);
+    }
+    
+    return body->eval(new_env);
+
 }
 
 Value Set::eval(Assoc &env) {
