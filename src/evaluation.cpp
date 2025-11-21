@@ -19,6 +19,7 @@
 
 extern std::map<std::string, ExprType> primitives;
 extern std::map<std::string, ExprType> reserved_words;
+static Value convertSyntaxToValue(const Syntax &syntax);//辅助函数
 
 Value Fixnum::eval(Assoc &e) { // evaluation of a fixnum
     return IntegerV(n);
@@ -212,9 +213,61 @@ static Value greaterEqualValues(const Value &v1, const Value &v2) {
 static Value greaterThanValues(const Value &v1, const Value &v2) {
     return BooleanV(compareNumericValues(v1, v2) > 0);
 }
+
+// syntax类转换为Value的辅助函数
+static Value convertSyntaxToValue(const Syntax &syntax) {
+    SyntaxBase* base = syntax.get();
+    
+    // 处理数字
+    if (Number* num = dynamic_cast<Number*>(base)) {
+        return IntegerV(num->n);
+    }
+    // 处理有理数
+    else if (RationalSyntax* rat = dynamic_cast<RationalSyntax*>(base)) {
+        return RationalV(rat->numerator, rat->denominator);
+    }
+    // 处理#t
+    else if (dynamic_cast<TrueSyntax*>(base)) {
+        return BooleanV(true);
+    }
+    // 处理#f
+    else if (dynamic_cast<FalseSyntax*>(base)) {
+        return BooleanV(false);
+    }
+    // 处理符号
+    else if (SymbolSyntax* sym = dynamic_cast<SymbolSyntax*>(base)) {
+        return SymbolV(sym->s);
+    }
+    // 处理字符串
+    else if (StringSyntax* str = dynamic_cast<StringSyntax*>(base)) {
+        return StringV(str->s);
+    }
+    // 处理列表 - 需要递归处理
+    else if (List* lst = dynamic_cast<List*>(base)) {
+        return convertSyntaxListToValue(lst);
+    }
+    else {
+        throw RuntimeError("Unknown syntax type in quote");
+    }
+}
+
+// 辅助函数：将语法列表转换为Value列表
+static Value convertSyntaxListToValue(List* lst) {
+    if (lst->stxs.empty()) {
+        return NullV();  // 空列表
+    }
+    
+    // 递归构建列表
+    Value result = NullV();
+    for (int i = lst->stxs.size() - 1; i >= 0; i--) {
+        Value element_value = convertSyntaxToValue(lst->stxs[i]);
+        result = PairV(element_value, result);
+    }
+    return result;
+}
 //======================================
 
-Value Var::eval(Assoc &e) { // evaluation of variable  //part of TODO!!!
+Value Var::eval(Assoc &e) { // evaluation of variable  //debug later!!!
 
     // TODO: TO identify the invalid variable
 
@@ -778,23 +831,71 @@ Value Begin::eval(Assoc &e) {
 }
 
 Value Quote::eval(Assoc& e) {
+
     //TODO: To complete the quote logic
+    // 引用表达式直接返回其内容，不进行求值
+    // 根据expr.cpp，Quote使用成员变量s（Syntax类型）
+    return convertSyntaxToValue(s);
+
 }
 
 Value AndVar::eval(Assoc &e) { // and with short-circuit evaluation
     //TODO: To complete the and logic
+    if (rands.empty()) return BooleanV(true); // 空and返回#t
+    
+    for (auto &expr : rands) {
+        Value result = expr->eval(e);
+        // 如果遇到#f，立即返回#f（短路求值）
+        if (result->v_type == V_BOOL && !dynamic_cast<Boolean*>(result.get())->b) {
+            return BooleanV(false);
+        }
+    }
+    // 所有表达式都为真，返回最后一个表达式的结果
+    return rands.back()->eval(e);
 }
 
 Value OrVar::eval(Assoc &e) { // or with short-circuit evaluation
     //TODO: To complete the or logic
+    if (rands.empty()) return BooleanV(false); // 空or返回#f
+    
+    for (auto &expr : rands) {
+        Value result = expr->eval(e);
+        // 如果遇到真值，立即返回该值（短路求值）
+        if (result->v_type != V_BOOL || dynamic_cast<Boolean*>(result.get())->b) {
+            return result;
+        }
+    }
+    // 所有表达式都为假，返回#f
+    return BooleanV(false);
 }
 
 Value Not::evalRator(const Value &rand) { // not
     //TODO: To complete the not logic
+    if (rand->v_type == V_BOOL) {
+        return BooleanV(!dynamic_cast<Boolean*>(rand.get())->b);
+    }
+    // 非布尔值在Scheme中也被视为真值，not返回#f
+    return BooleanV(false);
 }
 
 Value If::eval(Assoc &e) {
     //TODO: To complete the if logic
+    Value test_val = cond->eval(e);
+    
+    // 在Scheme中，只有#f被视为假，其他所有值都为真
+    bool test_result = true;
+    if (test_val->v_type == V_BOOL) {
+        test_result = dynamic_cast<Boolean*>(test_val.get())->b;
+    }
+    
+    if (test_result) {
+        return conseq->eval(e);
+    } else if (alter.get() != nullptr) {  // 检查alter是否不为空指针
+        return alter->eval(e);
+    } else {
+        // 没有else分支时返回未定义值
+        return VoidV();
+    }
 }
 
 Value Cond::eval(Assoc &env) {
@@ -875,6 +976,10 @@ Value Apply::eval(Assoc &e) {  //check later!!1
 
 Value Define::eval(Assoc &env) {
     //TODO: To complete the define logic
+    // 定义变量，将标识符绑定到环境中
+    Value value = e->eval(env);
+    env = extend(var, value, env);
+    return VoidV(); // define返回未定义值
 }
 
 Value Let::eval(Assoc &env) {
@@ -910,6 +1015,21 @@ Value Letrec::eval(Assoc &env) {
 
 Value Set::eval(Assoc &env) {
     //TODO: To complete the set logic
+    // 修改变量的值
+    Value value = e->eval(env);
+    
+    // 在环境中查找变量并修改其值
+    Assoc current = env;
+    while (current.get() != nullptr) {
+        if (current->x == var) {
+            current->v = value;  // 根据value.cpp，成员变量是v
+            return VoidV();
+        }
+        current = current->next;
+    }
+    
+    // 如果变量未定义，抛出错误
+    throw RuntimeError("set!: cannot set variable before definition: " + var);
 }
 
 Value Display::evalRator(const Value &rand) { // display function
