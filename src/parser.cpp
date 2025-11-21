@@ -35,8 +35,9 @@ Expr Number::parse(Assoc &env) {
     return Expr(new Fixnum(n));
 }
 
-Expr RationalSyntax::parse(Assoc &env) {
+Expr RationalSyntax::parse(Assoc &env) {  //check later
     //TODO: complete the rational parser
+    return Expr(new RationalNum(numerator, denominator));
 }
 
 Expr SymbolSyntax::parse(Assoc &env) {
@@ -65,15 +66,36 @@ Expr List::parse(Assoc &env) {
     //If so, find whether it's a variable or a keyword;
     SymbolSyntax *id = dynamic_cast<SymbolSyntax*>(stxs[0].get());
     if (id == nullptr) {
-        //TODO: TO COMPLETE THE LOGIC
+
+        //TODO
+        // 第一个元素不是符号，解析为函数应用
+        vector<Expr> args;
+        for (size_t i = 1; i < stxs.size(); i++) {
+            args.push_back(stxs[i]->parse(env));
+        }
+        return Expr(new Apply(stxs[0]->parse(env), args));
+
     }else{
     string op = id->s;
     if (find(op, env).get() != nullptr) {
-        //TODO: TO COMPLETE THE PARAMETER PARSER LOGIC
+
+        //TODO
+        // 在环境中找到变量，解析为函数应用
+        vector<Expr> args;
+        for (size_t i = 1; i < stxs.size(); i++) {
+            args.push_back(stxs[i]->parse(env));
+        }
+        return Expr(new Apply(Expr(new Var(op)), args));
+
     }
     if (primitives.count(op) != 0) {
         vector<Expr> parameters;
-        //TODO: TO COMPLETE THE PARAMETER PARSER LOGIC
+
+        //TODO
+        for (size_t i = 1; i < stxs.size(); i++) {
+            parameters.push_back(stxs[i]->parse(env));
+        }
+
         
         ExprType op_type = primitives[op];
         if (op_type == E_PLUS) {
@@ -83,11 +105,32 @@ Expr List::parse(Assoc &env) {
                 throw RuntimeError("Wrong number of arguments for +");
             }
         } else if (op_type == E_MINUS) {
-            //TODO: TO COMPLETE THE LOGIC
+
+            //TODO
+            if (parameters.size() == 2) {
+                return Expr(new Minus(parameters[0], parameters[1]));
+            } else {
+                return Expr(new MinusVar(parameters));
+            }
+
         } else if (op_type == E_MUL) {
-            //TODO: TO COMPLETE THE LOGIC
+
+            //TODO
+            if (parameters.size() == 2) {
+                return Expr(new Mult(parameters[0], parameters[1]));
+            } else {
+                return Expr(new MultVar(parameters));
+            }
+
         }  else if (op_type == E_DIV) {
-            //TODO: TO COMPLETE THE LOGIC
+
+            //TODO
+            if (parameters.size() == 2) {
+                return Expr(new Div(parameters[0], parameters[1]));
+            } else {
+                return Expr(new DivVar(parameters));
+            }
+
         } else if (op_type == E_MODULO) {
             if (parameters.size() != 2) {
                 throw RuntimeError("Wrong number of arguments for modulo");
