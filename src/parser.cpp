@@ -355,6 +355,43 @@ Expr List::parse(Assoc &env) {
                 return Expr(new Lambda(params, body));
             }
             case E_DEFINE: {
+
+                if (parameters.size() < 1) {
+                    throw RuntimeError("Wrong number of arguments for define");
+                }
+    
+                // 检查是否是函数定义形式：(define (name args...) body...)
+                List* func_def = dynamic_cast<List*>(stxs[1].get());
+                if (func_def && !func_def->stxs.empty()) {
+                    SymbolSyntax* func_name_sym = dynamic_cast<SymbolSyntax*>(func_def->stxs[0].get());
+                    if (func_name_sym) {
+                    // 函数定义形式：转换为 (define name (lambda (args...) body...))
+                        std::string func_name = func_name_sym->s;
+            
+                        // 提取参数
+                        vector<string> params;
+                        for (size_t i = 1; i < func_def->stxs.size(); i++) {
+                            SymbolSyntax* param_sym = dynamic_cast<SymbolSyntax*>(func_def->stxs[i].get());
+                            if (!param_sym) {
+                                throw RuntimeError("Function parameter must be a symbol");
+                            }
+                            params.push_back(param_sym->s);
+                        }
+            
+                    // 构建函数体
+                vector<Expr> body_exprs;
+                for (size_t i = 2; i < stxs.size(); i++) {
+                    body_exprs.push_back(stxs[i]->parse(env));
+                }
+                Expr body = body_exprs.size() == 1 ? body_exprs[0] : Expr(new Begin(body_exprs));
+            
+            // 创建 lambda 表达式
+            Expr lambda_expr(new Lambda(params, body));
+            
+            // 创建 define 表达式
+            return Expr(new Define(func_name, lambda_expr));
+        }
+            }
                 if (parameters.size() != 2) {
                     throw RuntimeError("Wrong number of arguments for define");
                 }

@@ -1052,11 +1052,22 @@ Value Apply::eval(Assoc &e) {  //check later!!1
 }
 
 Value Define::eval(Assoc &env) {
-    //TODO: To complete the define logic
+    //TODO
     // 定义变量，将标识符绑定到环境中
-    Value value = e->eval(env);
+    /*Value value = e->eval(env);
     env = extend(var, value, env);
-    return VoidV(); // define返回未定义值
+    return VoidV();*/
+    // 对于函数定义，我们需要支持递归
+    // 先创建一个占位符
+    env = extend(var, VoidV(), env);
+    
+    // 计算实际值（在包含占位符的环境中）
+    Value value = e->eval(env);
+    
+    // 更新为实际值
+    modify(var, value, env);
+    
+    return VoidV();
 }
 
 Value Let::eval(Assoc &env) {
