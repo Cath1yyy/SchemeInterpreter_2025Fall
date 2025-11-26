@@ -1010,20 +1010,16 @@ Value Cond::eval(Assoc &env) {
 }
 
 Value Lambda::eval(Assoc &env) { 
-
-    //TODO: To complete the lambda logic
+    // 捕获当前环境，创建闭包
     return ProcedureV(x, e, env);
-
 }
 
 Value Apply::eval(Assoc &e) {  //check later!!1
     Value proc_val = rator->eval(e);
+    //std::cerr << "DEBUG: Applying procedure, type: " << proc_val->v_type << std::endl;
     if (proc_val->v_type != V_PROC) {
         throw RuntimeError("Attempt to apply a non-procedure");
     }
-    //if (rator->eval(e)->v_type != V_PROC) {
-    //    throw RuntimeError("Attempt to apply a non-procedure");
-    //}
 
     //TODO: TO COMPLETE THE CLOSURE LOGIC
     Procedure* clos_ptr = dynamic_cast<Procedure*>(proc_val.get());
@@ -1053,8 +1049,8 @@ Value Apply::eval(Assoc &e) {  //check later!!1
         throw RuntimeError("Invalid procedure object");
     }*/
 
-    if (args.size() != clos_ptr->parameters.size())
-        throw RuntimeError("Wrong number of arguments");
+    /*if (args.size() != clos_ptr->parameters.size())
+        throw RuntimeError("Wrong number of arguments");*/
     
     //TODO: TO COMPLETE THE PARAMETERS' ENVIRONMENT LOGIC
     // 扩展环境：在闭包的词法环境基础上，将形参与实参绑定
@@ -1062,16 +1058,13 @@ Value Apply::eval(Assoc &e) {  //check later!!1
     for (size_t i = 0; i < clos_ptr->parameters.size(); i++) {
         param_env = extend(clos_ptr->parameters[i], args[i], param_env);
     }
-
+    //std::cerr << "DEBUG: About to evaluate procedure body in closure env" << std::endl;
     return clos_ptr->e->eval(param_env);
 }
 
-Value Define::eval(Assoc &env) {
+/*Value Define::eval(Assoc &env) {
     //TODO
     // 定义变量，将标识符绑定到环境中
-    /*Value value = e->eval(env);
-    env = extend(var, value, env);
-    return VoidV();*/
     // 对于函数定义，我们需要支持递归
     // 先创建一个占位符
     env = extend(var, VoidV(), env);
@@ -1082,6 +1075,23 @@ Value Define::eval(Assoc &env) {
     // 更新为实际值
     modify(var, value, env);
     
+    return VoidV();
+}*/
+Value Define::eval(Assoc &env) {
+    //std::cerr << "DEBUG: Defining variable: " << var << std::endl;
+    // 对于函数定义，我们需要支持相互递归
+    // 先创建一个占位符
+    Assoc new_env = extend(var, VoidV(), env);
+    
+    // 计算实际值（在包含占位符的环境中）
+    Value value = e->eval(new_env);
+    
+    // 更新为实际值
+    modify(var, value, new_env);
+    
+    // 返回更新后的环境
+    env = new_env;
+    //std::cerr << "DEBUG: Defined variable: " << var << " successfully" << std::endl;
     return VoidV();
 }
 
