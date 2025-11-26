@@ -466,7 +466,6 @@ Expr List::parse(Assoc &env) {
         return Expr(new Quote(Syntax(new List())));
     }
     //=========================================
-    // 调试输出：显示正在解析的列表
     //std::cerr << "DEBUG: Parsing list with " << stxs.size() << " elements" << std::endl;
     for (size_t i = 0; i < stxs.size(); i++) {
         SymbolSyntax* sym = dynamic_cast<SymbolSyntax*>(stxs[i].get());
@@ -480,7 +479,7 @@ Expr List::parse(Assoc &env) {
 
     SymbolSyntax *id = dynamic_cast<SymbolSyntax*>(stxs[0].get());
     if (id == nullptr) {
-        // 第一个元素不是符号，解析为函数应用
+        //第一个元素不是符号，解析为函数应用
 
         //======================================
         //std::cerr << "DEBUG: First element is not a symbol, treating as application" << std::endl;
@@ -520,7 +519,7 @@ Expr List::parse(Assoc &env) {
 
         }
 
-        // 然后检查是否是特殊形式（只在语法位置）
+        //检查是否是特殊形式（只在语法位置）
         if (reserved_words.count(op) != 0) {
             // 处理特殊形式
             
