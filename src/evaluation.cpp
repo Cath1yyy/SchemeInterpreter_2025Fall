@@ -330,6 +330,12 @@ Value Var::eval(Assoc &e) { // evaluation of variable  //debug later!!!
     //When a variable is not defined in the current scope, your interpreter should output RuntimeError
     
     Value matched_value = find(x, e);
+
+    //===================================
+    std::cerr << "DEBUG: Looking up '" << x << "' in environment, result: " 
+          << (matched_value.get() != nullptr ? "FOUND" : "NOT FOUND") << std::endl;
+    //===================================
+
     if (matched_value.get() != nullptr) {
         return matched_value;
     }
