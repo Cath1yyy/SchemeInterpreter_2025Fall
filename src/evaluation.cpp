@@ -318,10 +318,10 @@ Value Var::eval(Assoc &e) { // evaluation of variable  //debug later!!!
     }
 
     // TODO: TO identify the invalid variable
-    //if (!e.get()) {
+    if (!e.get()) {
         //std::cerr << "ERROR: Null environment in Var::eval for variable: " << x << std::endl;
-    //    throw RuntimeError("Null environment");
-    //}
+        throw RuntimeError("Null environment");
+    }
     // We request all valid variable just need to be a symbol,you should promise:
     //The first character of a variable name cannot be a digit or any character from the set: {.@}
     //If a string can be recognized as a number, it will be prioritized as a number. For example: 1, -1, +123, .123, +124., 1e-3
@@ -964,7 +964,7 @@ Value If::eval(Assoc &e) {
     }
 }
 
-/*Value Cond::eval(Assoc &env) {
+Value Cond::eval(Assoc &env) {
     // 初始化result为void，如果没有匹配分支则返回void
     Value result = VoidV();
     
@@ -1007,54 +1007,6 @@ Value If::eval(Assoc &e) {
         }
     }
     return result;  // 返回初始化的void值
-}*/
-Value Cond::eval(Assoc &env) {
-    for (auto &clause : clauses) {
-        if (clause.empty()) continue;
-        
-        // 检查是否是 else 分支
-        Var* else_var = dynamic_cast<Var*>(clause[0].get());
-        if (else_var && else_var->x == "else") {
-            // 执行 else 分支的所有表达式
-            if (clause.size() < 2) {
-                throw RuntimeError("Cond else clause with no body expressions");
-            }
-            Value result = clause[1]->eval(env);
-            for (size_t i = 2; i < clause.size(); i++) {
-                result = clause[i]->eval(env);
-            }
-            return result;
-        }
-        
-        // 非else分支：先检查条件
-        Value test = clause[0]->eval(env);
-        
-        // 在Scheme中，只有#f被视为假
-        bool test_result = true;
-        if (test->v_type == V_BOOL) {
-            Boolean* bool_val = dynamic_cast<Boolean*>(test.get());
-            if (!bool_val) throw RuntimeError("Type conversion failed in cond condition");
-            test_result = bool_val->b;
-        }
-        
-        if (test_result) {
-            // 条件为真，执行分支体
-            if (clause.size() == 1) {
-                // 只有条件没有分支体，返回条件值本身
-                return test;
-            } else {
-                // 有分支体，执行所有表达式并返回最后一个
-                Value result = clause[1]->eval(env);
-                for (size_t i = 2; i < clause.size(); i++) {
-                    result = clause[i]->eval(env);
-                }
-                return result;
-            }
-        }
-    }
-    
-    // 没有任何分支匹配
-    return VoidV();
 }
 
 Value Lambda::eval(Assoc &env) { 
@@ -1062,7 +1014,7 @@ Value Lambda::eval(Assoc &env) {
     return ProcedureV(x, e, env);
 }
 
-/*Value Apply::eval(Assoc &e) {  //check later!!1
+Value Apply::eval(Assoc &e) {  //check later!!1
     Value proc_val = rator->eval(e);
     //std::cerr << "DEBUG: Applying procedure, type: " << proc_val->v_type << std::endl;
     if (proc_val->v_type != V_PROC) {
@@ -1091,6 +1043,14 @@ Value Lambda::eval(Assoc &env) {
     for (auto &expr : rand) {
         args.push_back(expr->eval(e));
     }
+    /*std::vector<Value> args;
+    if (auto varNode = dynamic_cast<Variadic*>(clos_ptr->e.get())) {
+        //TODO
+        throw RuntimeError("Invalid procedure object");
+    }*/
+
+    /*if (args.size() != clos_ptr->parameters.size())
+        throw RuntimeError("Wrong number of arguments");*/
     
     //TODO: TO COMPLETE THE PARAMETERS' ENVIRONMENT LOGIC
     // 扩展环境：在闭包的词法环境基础上，将形参与实参绑定
@@ -1100,40 +1060,24 @@ Value Lambda::eval(Assoc &env) {
     }
     //std::cerr << "DEBUG: About to evaluate procedure body in closure env" << std::endl;
     return clos_ptr->e->eval(param_env);
-}*/
-Value Apply::eval(Assoc &e) {
-    Value proc_val = rator->eval(e);
-    if (proc_val->v_type != V_PROC) {
-        throw RuntimeError("Attempt to apply a non-procedure");
-    }
-
-    Procedure* clos_ptr = dynamic_cast<Procedure*>(proc_val.get());
-    if (clos_ptr == nullptr) {
-        throw RuntimeError("Invalid procedure object");
-    }
-
-    // 检查参数数量
-    if (clos_ptr->parameters.size() != rand.size()) {
-        throw RuntimeError("Wrong number of arguments");
-    }
-    
-    // 对所有的实际参数表达式进行求值
-    std::vector<Value> args;
-    for (auto &expr : rand) {
-        args.push_back(expr->eval(e));
-    }
-    
-    // 关键修复：使用闭包的环境作为基础，而不是当前环境
-    Assoc param_env = clos_ptr->env;
-    for (size_t i = 0; i < clos_ptr->parameters.size(); i++) {
-        param_env = extend(clos_ptr->parameters[i], args[i], param_env);
-    }
-    
-    return clos_ptr->e->eval(param_env);
 }
 
-
 /*Value Define::eval(Assoc &env) {
+    //TODO
+    // 定义变量，将标识符绑定到环境中
+    // 对于函数定义，我们需要支持递归
+    // 先创建一个占位符
+    env = extend(var, VoidV(), env);
+    
+    // 计算实际值（在包含占位符的环境中）
+    Value value = e->eval(env);
+    
+    // 更新为实际值
+    modify(var, value, env);
+    
+    return VoidV();
+}*/
+Value Define::eval(Assoc &env) {
     //std::cerr << "DEBUG: Defining variable: " << var << std::endl;
     // 对于函数定义，我们需要支持相互递归
     // 先创建一个占位符
@@ -1148,24 +1092,6 @@ Value Apply::eval(Assoc &e) {
     // 返回更新后的环境
     env = new_env;
     //std::cerr << "DEBUG: Defined variable: " << var << " successfully" << std::endl;
-    return VoidV();
-}*/
-Value Define::eval(Assoc &env) {
-    // 直接在当前环境中定义
-    Value value = e->eval(env);
-    
-    // 检查变量是否已定义，如果已定义则修改，否则扩展
-    Assoc current = env;
-    while (current.get() != nullptr) {
-        if (current->x == var) {
-            current->v = value;
-            return VoidV();
-        }
-        current = current->next;
-    }
-    
-    // 变量未定义，创建新绑定
-    env = extend(var, value, env);
     return VoidV();
 }
 
@@ -1182,19 +1108,22 @@ Value Let::eval(Assoc &env) {
 }
 
 Value Letrec::eval(Assoc &env) {
-    // 先创建占位符绑定（使用VoidV作为初始值）
+
+    //TODO: To complete the letrec logic
+    // 先创建占位符绑定
     Assoc new_env = env;
     for (auto &binding : bind) {
         new_env = extend(binding.first, VoidV(), new_env);
     }
     
-    // 然后在包含占位符的环境中计算实际值
+    // 然后计算实际值
     for (auto &binding : bind) {
         Value val = binding.second->eval(new_env);
         modify(binding.first, val, new_env);
     }
     
     return body->eval(new_env);
+
 }
 
 Value Set::eval(Assoc &env) {
