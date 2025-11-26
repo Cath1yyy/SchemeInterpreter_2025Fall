@@ -45,6 +45,33 @@ bool isExplicitVoidCall(Expr expr) {
     return false;
 }
 
+// 检查是否是应该输出结果的情况
+bool shouldOutputValue(Expr expr, Value val) {
+    // 如果是显式 void 调用，总是输出
+    if (isExplicitVoidCall(expr)) {
+        return true;
+    }
+    
+    // 如果是 void 值但不是显式调用，不输出
+    if (val->v_type == V_VOID) {
+        return false;
+    }
+    
+    // 如果是终止信号，不输出
+    if (val->v_type == V_TERMINATE) {
+        return false;
+    }
+    
+    // 检查是否是特殊形式，这些通常不应该输出结果
+    if (dynamic_cast<Define*>(expr.get()) != nullptr ||
+        dynamic_cast<Set*>(expr.get()) != nullptr) {
+        return false;
+    }
+    
+    // 其他情况正常输出
+    return true;
+}
+
 void REPL(){
     // read - evaluation - print loop
     Assoc global_env = empty();
@@ -62,7 +89,11 @@ void REPL(){
             Value val = expr -> eval(global_env);
             if (val -> v_type == V_TERMINATE)
                 break;
-            val -> show(std :: cout); // value print
+            // 只有应该输出时才输出
+            if (shouldOutputValue(expr, val)) {
+                val -> show(std :: cout); // value print
+            }
+            //val -> show(std :: cout); // value print
         }
         catch (const RuntimeError &RE){
             // std :: cout << RE.message();

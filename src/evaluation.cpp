@@ -965,29 +965,40 @@ Value If::eval(Assoc &e) {
 }
 
 Value Cond::eval(Assoc &env) {
-
-    //TODO: To complete the cond logic
     // 初始化result为void，如果没有匹配分支则返回void
     Value result = VoidV();
     
     for (auto &clause : clauses) {
         if (clause.empty()) continue;
         
+        // 检查是否是 else 分支
+        Var* else_var = dynamic_cast<Var*>(clause[0].get());
+        if (else_var && else_var->x == "else") {
+            // 执行 else 分支的所有表达式
+            if (clause.size() < 2) {
+                throw RuntimeError("Cond else clause with no body expressions");
+            }
+            result = clause[1]->eval(env);
+            for (size_t i = 2; i < clause.size(); i++) {
+                result = clause[i]->eval(env);
+            }
+            return result;
+        }
+        
         if (clause.size() == 1) {
             // 只有条件没有分支，如 (cond (#t))
             Value test = clause[0]->eval(env);
+            // 在Scheme中，只有#f被视为假
             if (test->v_type != V_BOOL || dynamic_cast<Boolean*>(test.get())->b) {
                 return test;  // 返回条件值本身
             }
         } else {
             // 正常分支：条件 + 多个表达式
             Value test = clause[0]->eval(env);
+            // 在Scheme中，只有#f被视为假
             if (test->v_type != V_BOOL || dynamic_cast<Boolean*>(test.get())->b) {
                 // 执行该分支的所有表达式，返回最后一个的值
-                if (clause.size() < 2) {
-                    throw RuntimeError("Cond clause with no body expressions");
-                }
-                result = clause[1]->eval(env);  // 先初始化result
+                result = clause[1]->eval(env);
                 for (size_t i = 2; i < clause.size(); i++) {
                     result = clause[i]->eval(env);
                 }
@@ -996,7 +1007,6 @@ Value Cond::eval(Assoc &env) {
         }
     }
     return result;  // 返回初始化的void值
-
 }
 
 Value Lambda::eval(Assoc &env) { 
