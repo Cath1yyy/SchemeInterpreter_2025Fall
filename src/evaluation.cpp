@@ -20,6 +20,9 @@
 extern std::map<std::string, ExprType> primitives;
 extern std::map<std::string, ExprType> reserved_words;
 static Value convertSyntaxToValue(const Syntax &syntax);//辅助函数
+int compareNumericValues(const Value &v1, const Value &v2);
+static Value convertSyntaxToValue(const Syntax &syntax);
+static Value convertSyntaxListToValue(List* lst);
 
 Value Fixnum::eval(Assoc &e) { // evaluation of a fixnum
     return IntegerV(n);
@@ -268,20 +271,8 @@ static Value convertSyntaxListToValue(List* lst) {
 //======================================
 
 Value Var::eval(Assoc &e) { // evaluation of variable  //debug later!!!
-
-    // TODO: TO identify the invalid variable
-
-    // We request all valid variable just need to be a symbol,you should promise:
-    //The first character of a variable name cannot be a digit or any character from the set: {.@}
-    //If a string can be recognized as a number, it will be prioritized as a number. For example: 1, -1, +123, .123, +124., 1e-3
-    //Variable names can overlap with primitives and reserve_words
-    //Variable names can contain any non-whitespace characters except #, ', ", `, but the first character cannot be a digit
-    //When a variable is not defined in the current scope, your interpreter should output RuntimeError
-    
-    Value matched_value = find(x, e);
-    if (matched_value.get() == nullptr) {
-        if (primitives.count(x)) {
-             static std::map<ExprType, std::pair<Expr, std::vector<std::string>>> primitive_map = {
+    if (primitives.count(x)) {
+            static std::map<ExprType, std::pair<Expr, std::vector<std::string>>> primitive_map = {
                     {E_VOID,     {new MakeVoid(), {}}},
                     {E_EXIT,     {new Exit(), {}}},
                     {E_BOOLQ,    {new IsBoolean(new Var("parm")), {"parm"}}},
@@ -291,6 +282,7 @@ Value Var::eval(Assoc &e) { // evaluation of variable  //debug later!!!
                     {E_PROCQ,    {new IsProcedure(new Var("parm")), {"parm"}}},
                     {E_SYMBOLQ,  {new IsSymbol(new Var("parm")), {"parm"}}},
                     {E_STRINGQ,  {new IsString(new Var("parm")), {"parm"}}},
+                    {E_LISTQ,    {new IsList(new Var("parm")), {"parm"}}},
                     {E_DISPLAY,  {new Display(new Var("parm")), {"parm"}}},
                     {E_PLUS,     {new PlusVar({}),  {}}},
                     {E_MINUS,    {new MinusVar({}), {}}},
@@ -298,9 +290,22 @@ Value Var::eval(Assoc &e) { // evaluation of variable  //debug later!!!
                     {E_DIV,      {new DivVar({}),   {}}},
                     {E_MODULO,   {new Modulo(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
                     {E_EXPT,     {new Expt(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
-                    {E_EQQ,      {new EqualVar({}), {}}},
+                    {E_EQQ,      {new IsEq(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
+                    {E_LT,       {new LessVar({}), {}}},
+                    {E_LE,       {new LessEqVar({}), {}}},
+                    {E_EQ,       {new EqualVar({}), {}}},
+                    {E_GE,       {new GreaterEqVar({}), {}}},
+                    {E_GT,       {new GreaterVar({}), {}}},
+                    {E_CONS,     {new Cons(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
+                    {E_CAR,      {new Car(new Var("parm")), {"parm"}}},
+                    {E_CDR,      {new Cdr(new Var("parm")), {"parm"}}},
+                    {E_LIST,     {new ListFunc({}), {}}},
+                    {E_SETCAR,   {new SetCar(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
+                    {E_SETCDR,   {new SetCdr(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
+                    {E_NOT,      {new Not(new Var("parm")), {"parm"}}},
+                    {E_AND,      {new AndVar({}), {}}},
+                    {E_OR,       {new OrVar({}), {}}}
             };
-
             auto it = primitive_map.find(primitives[x]);
             //TOD0:to PASS THE parameters correctly;
             //COMPLETE THE CODE WITH THE HINT IN IF SENTENCE WITH CORRECT RETURN VALUE
@@ -310,11 +315,27 @@ Value Var::eval(Assoc &e) { // evaluation of variable  //debug later!!!
                 return ProcedureV(it->second.second, it->second.first, e);
 
             }
-            // 变量未定义，抛出运行时错误
-            throw RuntimeError("Undefined variable: " + x);  //do we need this??
-      }
     }
-    return matched_value;
+
+    // TODO: TO identify the invalid variable
+    if (!e.get()) {
+        std::cerr << "ERROR: Null environment in Var::eval for variable: " << x << std::endl;
+        throw RuntimeError("Null environment");
+    }
+    // We request all valid variable just need to be a symbol,you should promise:
+    //The first character of a variable name cannot be a digit or any character from the set: {.@}
+    //If a string can be recognized as a number, it will be prioritized as a number. For example: 1, -1, +123, .123, +124., 1e-3
+    //Variable names can overlap with primitives and reserve_words
+    //Variable names can contain any non-whitespace characters except #, ', ", `, but the first character cannot be a digit
+    //When a variable is not defined in the current scope, your interpreter should output RuntimeError
+    
+    Value matched_value = find(x, e);
+    if (matched_value.get() != nullptr) {
+        return matched_value;
+    }
+    // 变量未定义，抛出运行时错误
+    throw RuntimeError("Undefined variable: " + x);  //do we need this??
+    
 }
 
 Value Plus::evalRator(const Value &rand1, const Value &rand2) { // +  //check later
@@ -559,7 +580,7 @@ Value Expt::evalRator(const Value &rand1, const Value &rand2) { // expt
 }
 
 //A FUNCTION TO SIMPLIFY THE COMPARISON WITH INTEGER AND RATIONAL NUMBER
-int compareNumericValues(const Value &v1, const Value &v2) {
+/*int compareNumericValues(const Value &v1, const Value &v2) {
     if (v1->v_type == V_INT && v2->v_type == V_INT) {
         int n1 = dynamic_cast<Integer*>(v1.get())->n;
         int n2 = dynamic_cast<Integer*>(v2.get())->n;
@@ -582,6 +603,45 @@ int compareNumericValues(const Value &v1, const Value &v2) {
     else if (v1->v_type == V_RATIONAL && v2->v_type == V_RATIONAL) {
         Rational* r1 = dynamic_cast<Rational*>(v1.get());
         Rational* r2 = dynamic_cast<Rational*>(v2.get());
+        int left = r1->numerator * r2->denominator;
+        int right = r2->numerator * r1->denominator;
+        return (left < right) ? -1 : (left > right) ? 1 : 0;
+    }
+    throw RuntimeError("Wrong typename in numeric comparison");
+}*/
+int compareNumericValues(const Value &v1, const Value &v2) {
+    if (v1->v_type == V_INT && v2->v_type == V_INT) {
+        Integer* i1 = dynamic_cast<Integer*>(v1.get());
+        Integer* i2 = dynamic_cast<Integer*>(v2.get());
+        // 添加null检查
+        if (!i1 || !i2) throw RuntimeError("Type conversion failed in integer comparison");
+        int n1 = i1->n;
+        int n2 = i2->n;
+        return (n1 < n2) ? -1 : (n1 > n2) ? 1 : 0;
+    }
+    else if (v1->v_type == V_RATIONAL && v2->v_type == V_INT) {
+        Rational* r1 = dynamic_cast<Rational*>(v1.get());
+        Integer* i2 = dynamic_cast<Integer*>(v2.get());
+        // 添加null检查
+        if (!r1 || !i2) throw RuntimeError("Type conversion failed in rational-integer comparison");
+        int left = r1->numerator;
+        int right = i2->n * r1->denominator;
+        return (left < right) ? -1 : (left > right) ? 1 : 0;
+    }
+    else if (v1->v_type == V_INT && v2->v_type == V_RATIONAL) {
+        Integer* i1 = dynamic_cast<Integer*>(v1.get());
+        Rational* r2 = dynamic_cast<Rational*>(v2.get());
+        // 添加null检查
+        if (!i1 || !r2) throw RuntimeError("Type conversion failed in integer-rational comparison");
+        int left = i1->n * r2->denominator;
+        int right = r2->numerator;
+        return (left < right) ? -1 : (left > right) ? 1 : 0;
+    }
+    else if (v1->v_type == V_RATIONAL && v2->v_type == V_RATIONAL) {
+        Rational* r1 = dynamic_cast<Rational*>(v1.get());
+        Rational* r2 = dynamic_cast<Rational*>(v2.get());
+        // 添加null检查
+        if (!r1 || !r2) throw RuntimeError("Type conversion failed in rational comparison");
         int left = r1->numerator * r2->denominator;
         int right = r2->numerator * r1->denominator;
         return (left < right) ? -1 : (left > right) ? 1 : 0;
@@ -821,7 +881,6 @@ Value Begin::eval(Assoc &e) {
     
     // 初始化result为第一个表达式的值
     Value result = es[0]->eval(e);
-    
     // 依次执行剩余的表达式，只保留最后一个结果
     for (size_t i = 1; i < es.size(); i++) {
         result = es[i]->eval(e);
@@ -831,7 +890,6 @@ Value Begin::eval(Assoc &e) {
 }
 
 Value Quote::eval(Assoc& e) {
-
     //TODO: To complete the quote logic
     // 引用表达式直接返回其内容，不进行求值
     // 根据expr.cpp，Quote使用成员变量s（Syntax类型）
@@ -885,7 +943,10 @@ Value If::eval(Assoc &e) {
     // 在Scheme中，只有#f被视为假，其他所有值都为真
     bool test_result = true;
     if (test_val->v_type == V_BOOL) {
-        test_result = dynamic_cast<Boolean*>(test_val.get())->b;
+        //test_result = dynamic_cast<Boolean*>(test_val.get())->b;
+        Boolean* bool_val = dynamic_cast<Boolean*>(test_val.get());
+        if (!bool_val) throw RuntimeError("Type conversion failed in if condition");
+        test_result = bool_val->b;
     }
     
     if (test_result) {
@@ -918,6 +979,9 @@ Value Cond::eval(Assoc &env) {
             Value test = clause[0]->eval(env);
             if (test->v_type != V_BOOL || dynamic_cast<Boolean*>(test.get())->b) {
                 // 执行该分支的所有表达式，返回最后一个的值
+                if (clause.size() < 2) {
+                    throw RuntimeError("Cond clause with no body expressions");
+                }
                 result = clause[1]->eval(env);  // 先初始化result
                 for (size_t i = 2; i < clause.size(); i++) {
                     result = clause[i]->eval(env);
@@ -948,6 +1012,19 @@ Value Apply::eval(Assoc &e) {  //check later!!1
 
     //TODO: TO COMPLETE THE CLOSURE LOGIC
     Procedure* clos_ptr = dynamic_cast<Procedure*>(proc_val.get());
+    if (clos_ptr == nullptr) {  //check if nullptr, throw error instead of segmentation fault
+        throw RuntimeError("Invalid procedure object");
+    }
+
+    // 确保闭包表达式不为空
+    if (clos_ptr->e.get() == nullptr) {  //check!!!
+        throw RuntimeError("Procedure body is null");
+    }
+
+    // 检查参数列表是否有效
+    if (clos_ptr->parameters.size() != rand.size()) {
+        throw RuntimeError("Wrong number of arguments");
+    }
     
     //TODO: TO COMPLETE THE ARGUMENT PARSER LOGIC
     // 对所有的实际参数表达式进行求值，得到实参列表

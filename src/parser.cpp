@@ -99,37 +99,41 @@ Expr List::parse(Assoc &env) {
         
         ExprType op_type = primitives[op];
         if (op_type == E_PLUS) {
-            if (parameters.size() == 2) {
+            /*if (parameters.size() == 2) {
                 return Expr(new Plus(parameters[0], parameters[1])); 
             } else {
                 throw RuntimeError("Wrong number of arguments for +");
-            }
+            }*/
+           return Expr(new PlusVar(parameters));  // 总是使用可变参数版本
         } else if (op_type == E_MINUS) {
 
             //TODO
-            if (parameters.size() == 2) {
+            /*if (parameters.size() == 2) {
                 return Expr(new Minus(parameters[0], parameters[1]));
             } else {
                 return Expr(new MinusVar(parameters));
-            }
+            }*/
+           return Expr(new MinusVar(parameters));  // 总是使用可变参数版本
 
         } else if (op_type == E_MUL) {
 
             //TODO
-            if (parameters.size() == 2) {
+            /*if (parameters.size() == 2) {
                 return Expr(new Mult(parameters[0], parameters[1]));
             } else {
                 return Expr(new MultVar(parameters));
-            }
+            }*/
+           return Expr(new MultVar(parameters));  // 总是使用可变参数版本
 
-        }  else if (op_type == E_DIV) {
+        } else if (op_type == E_DIV) {
 
             //TODO
-            if (parameters.size() == 2) {
+            /*if (parameters.size() == 2) {
                 return Expr(new Div(parameters[0], parameters[1]));
             } else {
                 return Expr(new DivVar(parameters));
-            }
+            }*/
+            return Expr(new DivVar(parameters));  // 总是使用可变参数版本
 
         } else if (op_type == E_MODULO) {
             if (parameters.size() != 2) {
@@ -221,6 +225,46 @@ Expr List::parse(Assoc &env) {
             return Expr(new AndVar(parameters));
         } else if (op_type == E_OR) {
             return Expr(new OrVar(parameters));
+        } else if (op_type == E_BOOLQ) {
+            if (parameters.size() != 1) {
+                throw RuntimeError("Wrong number of arguments for boolean?");
+            }
+            return Expr(new IsBoolean(parameters[0]));
+        } else if (op_type == E_INTQ) {
+            if (parameters.size() != 1) {
+                throw RuntimeError("Wrong number of arguments for number?");
+            }
+            return Expr(new IsFixnum(parameters[0]));
+        } else if (op_type == E_NULLQ) {
+            if (parameters.size() != 1) {
+                throw RuntimeError("Wrong number of arguments for null?");
+            }
+            return Expr(new IsNull(parameters[0]));
+        } else if (op_type == E_PAIRQ) {
+            if (parameters.size() != 1) {
+                throw RuntimeError("Wrong number of arguments for pair?");
+            }
+            return Expr(new IsPair(parameters[0]));
+        } else if (op_type == E_PROCQ) {
+            if (parameters.size() != 1) {
+                throw RuntimeError("Wrong number of arguments for procedure?");
+            }
+            return Expr(new IsProcedure(parameters[0]));
+        } else if (op_type == E_SYMBOLQ) {
+            if (parameters.size() != 1) {
+                throw RuntimeError("Wrong number of arguments for symbol?");
+            }
+            return Expr(new IsSymbol(parameters[0]));
+        } else if (op_type == E_STRINGQ) {
+            if (parameters.size() != 1) {
+                throw RuntimeError("Wrong number of arguments for string?");
+            }
+            return Expr(new IsString(parameters[0]));
+        } else if (op_type == E_LISTQ) {
+            if (parameters.size() != 1) {
+                throw RuntimeError("Wrong number of arguments for list?");
+            }
+            return Expr(new IsList(parameters[0]));
         } else {
 
             //TODO
