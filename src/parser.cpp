@@ -467,13 +467,13 @@ Expr List::parse(Assoc &env) {
     }
     //=========================================
     // 调试输出：显示正在解析的列表
-    std::cerr << "DEBUG: Parsing list with " << stxs.size() << " elements" << std::endl;
+    //std::cerr << "DEBUG: Parsing list with " << stxs.size() << " elements" << std::endl;
     for (size_t i = 0; i < stxs.size(); i++) {
         SymbolSyntax* sym = dynamic_cast<SymbolSyntax*>(stxs[i].get());
         if (sym) {
-            std::cerr << "  [" << i << "]: Symbol '" << sym->s << "'" << std::endl;
+            //std::cerr << "  [" << i << "]: Symbol '" << sym->s << "'" << std::endl;
         } else {
-            std::cerr << "  [" << i << "]: Non-symbol syntax" << std::endl;
+            //std::cerr << "  [" << i << "]: Non-symbol syntax" << std::endl;
         }
     }
     //=========================================
@@ -483,7 +483,7 @@ Expr List::parse(Assoc &env) {
         // 第一个元素不是符号，解析为函数应用
 
         //======================================
-        std::cerr << "DEBUG: First element is not a symbol, treating as application" << std::endl;
+        //std::cerr << "DEBUG: First element is not a symbol, treating as application" << std::endl;
         //======================================
 
         vector<Expr> args;
@@ -495,7 +495,7 @@ Expr List::parse(Assoc &env) {
         string op = id->s;
 
         //====================================
-        std::cerr << "DEBUG: First element is symbol: '" << op << "'" << std::endl;
+        //std::cerr << "DEBUG: First element is symbol: '" << op << "'" << std::endl;
         //====================================
 
         // 首先检查是否在环境中（包括局部绑定的变量）
@@ -503,7 +503,7 @@ Expr List::parse(Assoc &env) {
             // 在环境中找到变量，解析为函数应用
 
             //=================================
-            std::cerr << "DEBUG: Found '" << op << "' in environment" << std::endl;
+            //std::cerr << "DEBUG: Found '" << op << "' in environment" << std::endl;
             //=================================
 
             vector<Expr> args;
@@ -515,7 +515,7 @@ Expr List::parse(Assoc &env) {
         else{
 
             //=================================
-            std::cerr << "DEBUG: '" << op << "' NOT found in environment" << std::endl;
+            //std::cerr << "DEBUG: '" << op << "' NOT found in environment" << std::endl;
             //=================================
 
         }
@@ -525,7 +525,7 @@ Expr List::parse(Assoc &env) {
             // 处理特殊形式
             
             //=================================
-            std::cerr << "DEBUG: '" << op << "' is a reserved word" << std::endl;
+            //std::cerr << "DEBUG: '" << op << "' is a reserved word" << std::endl;
             //=================================
 
             vector<Expr> parameters;
@@ -632,7 +632,7 @@ Expr List::parse(Assoc &env) {
                 }
                 case E_LET: {
 
-                    std::cerr << "DEBUG: Processing LET expression" << std::endl;
+                    //std::cerr << "DEBUG: Processing LET expression" << std::endl;
 
 
                     if (parameters.size() < 2) {
@@ -643,7 +643,7 @@ Expr List::parse(Assoc &env) {
                         throw RuntimeError("Let bindings must be a list");
                     }
 
-                    std::cerr << "DEBUG: Let has " << bind_list->stxs.size() << " bindings" << std::endl;
+                    //std::cerr << "DEBUG: Let has " << bind_list->stxs.size() << " bindings" << std::endl;
 
                     vector<pair<string, Expr>> bindings;
                     for (auto& bind_stx : bind_list->stxs) {
@@ -719,7 +719,7 @@ Expr List::parse(Assoc &env) {
         // 检查是否是原始操作
         if (primitives.count(op) != 0) {
 
-            std::cerr << "DEBUG: '" << op << "' is a primitive operation" << std::endl;
+            //std::cerr << "DEBUG: '" << op << "' is a primitive operation" << std::endl;
 
             vector<Expr> parameters;
             for (size_t i = 1; i < stxs.size(); i++) {

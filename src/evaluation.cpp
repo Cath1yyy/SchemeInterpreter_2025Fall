@@ -319,7 +319,7 @@ Value Var::eval(Assoc &e) { // evaluation of variable  //debug later!!!
 
     // TODO: TO identify the invalid variable
     if (!e.get()) {
-        std::cerr << "ERROR: Null environment in Var::eval for variable: " << x << std::endl;
+        //std::cerr << "ERROR: Null environment in Var::eval for variable: " << x << std::endl;
         throw RuntimeError("Null environment");
     }
     // We request all valid variable just need to be a symbol,you should promise:
@@ -332,8 +332,7 @@ Value Var::eval(Assoc &e) { // evaluation of variable  //debug later!!!
     Value matched_value = find(x, e);
 
     //===================================
-    std::cerr << "DEBUG: Looking up '" << x << "' in environment, result: " 
-          << (matched_value.get() != nullptr ? "FOUND" : "NOT FOUND") << std::endl;
+    //std::cerr << "DEBUG: Looking up '" << x << "' in environment, result: "  << (matched_value.get() != nullptr ? "FOUND" : "NOT FOUND") << std::endl;
     //===================================
 
     if (matched_value.get() != nullptr) {
