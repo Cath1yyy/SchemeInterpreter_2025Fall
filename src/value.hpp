@@ -181,7 +181,7 @@ Value PairV(const Value &, const Value &);
  */
 struct Procedure : ValueBase {
     std::vector<std::string> parameters;   ///< Parameter names
-    Expr e;                                ///< Function body expression
+    Expr body;                                ///< Function body expression  //before: Expr e;
     Assoc env;                             ///< Closure environment
     Procedure(const std::vector<std::string> &, const Expr &, const Assoc &);
     virtual void show(std::ostream &) override;

@@ -15,6 +15,7 @@
 #include <map>
 #include <string>
 #include <iostream>
+#include <set>
 
 #define mp make_pair
 using std::string;
@@ -61,6 +62,7 @@ Expr List::parse(Assoc &env) {
     if (stxs.empty()) {
         return Expr(new Quote(Syntax(new List())));
     }
+    std::set<std::string> shadow;
     //=========================================
     // 调试输出：显示正在解析的列表
     //std::cerr << "DEBUG: Parsing list with " << stxs.size() << " elements" << std::endl;
@@ -117,7 +119,7 @@ Expr List::parse(Assoc &env) {
         }
 
         // 然后检查是否是特殊形式（只在语法位置）
-        if (reserved_words.count(op) != 0) {
+        if (reserved_words.count(op) != 0 && find(op, env).get() == nullptr) {
             // 处理特殊形式
             
             //=================================
@@ -166,64 +168,75 @@ Expr List::parse(Assoc &env) {
                     return Expr(new Cond(clauses));
                 }
                 case E_LAMBDA: {
-                    if (parameters.size() < 2) {
-                        throw RuntimeError("Wrong number of arguments for lambda");
-                    }
-                    List* param_list = dynamic_cast<List*>(stxs[1].get());
-                    if (!param_list) {
-                        throw RuntimeError("Lambda parameters must be a list");
-                    }
-                    vector<string> params;
-                    for (auto& param_stx : param_list->stxs) {
-                        SymbolSyntax* param_sym = dynamic_cast<SymbolSyntax*>(param_stx.get());
-                        if (!param_sym) {
-                            throw RuntimeError("Lambda parameter must be a symbol");
-                        }
-                        params.push_back(param_sym->s);
-                    }
-                    if (stxs.size() < 3) {
-                        throw RuntimeError("Lambda must have a body");
-                    }
-                    //-----------------------
-                    Assoc lambda_env = env;
-                    for (const auto& param : params) {
-                    // 使用VoidV作为占位值，实际值在调用时确定
-                        lambda_env = extend(param, VoidV(), lambda_env);
-                    }
-                    //--------------------------
-                    vector<Expr> body_exprs;
-                    for (size_t i = 2; i < stxs.size(); i++) {
-                        body_exprs.push_back(stxs[i]->parse(env));
-                    }
-                    Expr body = body_exprs.size() == 1 ? body_exprs[0] : Expr(new Begin(body_exprs));
-                    return Expr(new Lambda(params, body));
-                }
+    if (parameters.size() < 2) {
+        throw RuntimeError("Wrong number of arguments for lambda");
+    }
+    List* param_list = dynamic_cast<List*>(stxs[1].get());
+    if (!param_list) {
+        throw RuntimeError("Lambda parameters must be a list");
+    }
+
+    vector<string> params;
+    for (auto& param_stx : param_list->stxs) {
+        SymbolSyntax* param_sym = dynamic_cast<SymbolSyntax*>(param_stx.get());
+        if (!param_sym) {
+            throw RuntimeError("Lambda parameter must be a symbol");
+        }
+        params.push_back(param_sym->s);
+    }
+
+    // extend parsing environment so body sees parameters
+    Assoc parse_env = env;
+    for (auto &p : params) {
+        //parse_env = extend(p, Value(nullptr), parse_env);
+        parse_env = extend(p, VoidV(), parse_env);
+    }
+
+    if (stxs.size() < 3) {
+        throw RuntimeError("Lambda must have a body");
+    }
+
+    vector<Expr> body_exprs;
+    for (size_t i = 2; i < stxs.size(); i++) {
+        body_exprs.push_back(stxs[i]->parse(parse_env));
+    }
+
+    Expr body = body_exprs.size() == 1 ? body_exprs[0] : Expr(new Begin(body_exprs));
+    return Expr(new Lambda(params, body));
+}
                 case E_DEFINE: {
                     if (parameters.size() < 1) {
                         throw RuntimeError("Wrong number of arguments for define");
                     }
                     List* func_def = dynamic_cast<List*>(stxs[1].get());
                     if (func_def && !func_def->stxs.empty()) {
-                        SymbolSyntax* func_name_sym = dynamic_cast<SymbolSyntax*>(func_def->stxs[0].get());
-                        if (func_name_sym) {
-                            std::string func_name = func_name_sym->s;
-                            vector<string> params;
-                            for (size_t i = 1; i < func_def->stxs.size(); i++) {
-                                SymbolSyntax* param_sym = dynamic_cast<SymbolSyntax*>(func_def->stxs[i].get());
-                                if (!param_sym) {
-                                    throw RuntimeError("Function parameter must be a symbol");
-                                }
-                                params.push_back(param_sym->s);
-                            }
-                            vector<Expr> body_exprs;
-                            for (size_t i = 2; i < stxs.size(); i++) {
-                                body_exprs.push_back(stxs[i]->parse(env));
-                            }
-                            Expr body = body_exprs.size() == 1 ? body_exprs[0] : Expr(new Begin(body_exprs));
-                            Expr lambda_expr(new Lambda(params, body));
-                            return Expr(new Define(func_name, lambda_expr));
-                        }
-                    }
+    SymbolSyntax* func_name_sym = dynamic_cast<SymbolSyntax*>(func_def->stxs[0].get());
+    if (func_name_sym) {
+        std::string func_name = func_name_sym->s;
+        vector<string> params;
+        for (size_t i = 1; i < func_def->stxs.size(); i++) {
+            SymbolSyntax* param_sym = dynamic_cast<SymbolSyntax*>(func_def->stxs[i].get());
+            if (!param_sym) {
+                throw RuntimeError("Function parameter must be a symbol");
+            }
+            params.push_back(param_sym->s);
+        }
+
+        // --- build parse-time environment so parameters shadow keywords in body ---
+        Assoc parse_env = env;
+        for (auto &p : params) {
+            parse_env = extend(p, VoidV(), parse_env);
+        }
+
+        vector<Expr> body_exprs;
+        for (size_t i = 2; i < stxs.size(); i++) {
+            body_exprs.push_back(stxs[i]->parse(parse_env));
+        }
+        Expr body = body_exprs.size() == 1 ? body_exprs[0] : Expr(new Begin(body_exprs));
+        Expr lambda_expr(new Lambda(params, body));
+        return Expr(new Define(func_name, lambda_expr));
+    }
+}
                     if (parameters.size() != 2) {
                         throw RuntimeError("Wrong number of arguments for define");
                     }
@@ -234,76 +247,98 @@ Expr List::parse(Assoc &env) {
                     return Expr(new Define(var_sym->s, parameters[1]));
                 }
                 case E_LET: {
-
-                    //std::cerr << "DEBUG: Processing LET expression" << std::endl;
-
-
                     if (parameters.size() < 2) {
                         throw RuntimeError("Wrong number of arguments for let");
                     }
-                    List* bind_list = dynamic_cast<List*>(stxs[1].get());
-                    if (!bind_list) {
-                        throw RuntimeError("Let bindings must be a list");
-                    }
-
-                    //std::cerr << "DEBUG: Let has " << bind_list->stxs.size() << " bindings" << std::endl;
-
-                    vector<pair<string, Expr>> bindings;
-                    for (auto& bind_stx : bind_list->stxs) {
-                        List* bind_pair = dynamic_cast<List*>(bind_stx.get());
-                        if (!bind_pair || bind_pair->stxs.size() != 2) {
-                            throw RuntimeError("Let binding must be a pair (variable value)");
-                        }
-                        SymbolSyntax* var_sym = dynamic_cast<SymbolSyntax*>(bind_pair->stxs[0].get());
-                        if (!var_sym) {
-                            throw RuntimeError("Let variable must be a symbol");
-                        }
-                        std::string var_name = var_sym->s;
-                        Expr value_expr = bind_pair->stxs[1]->parse(env);
-                        bindings.push_back(mp(var_name, value_expr));
-                    }
-                    if (stxs.size() < 3) {
-                        throw RuntimeError("Let must have a body");
-                    }
-                    vector<Expr> body_exprs;
-                    for (size_t i = 2; i < stxs.size(); i++) {
-                        body_exprs.push_back(stxs[i]->parse(env));
-                    }
-                    Expr body = body_exprs.size() == 1 ? body_exprs[0] : Expr(new Begin(body_exprs));
-                    return Expr(new Let(bindings, body));
+                List* bind_list = dynamic_cast<List*>(stxs[1].get());
+                if (!bind_list) {
+                    throw RuntimeError("Let bindings must be a list");
                 }
+
+                // Step 1: parse all binding expressions first
+                vector<pair<string, Expr>> bindings;
+                for (auto& bind_stx : bind_list->stxs) {
+                    List* bind_pair = dynamic_cast<List*>(bind_stx.get());
+                    if (!bind_pair || bind_pair->stxs.size() != 2) {
+                        throw RuntimeError("Let binding must be a pair (variable value)");
+                    }
+                    SymbolSyntax* var_sym = dynamic_cast<SymbolSyntax*>(bind_pair->stxs[0].get());
+                    if (!var_sym) {
+                        throw RuntimeError("Let variable must be a symbol");
+                    }
+                    string var_name = var_sym->s;
+
+                    Expr value_expr = bind_pair->stxs[1]->parse(env);
+                    bindings.push_back(mp(var_name, value_expr));
+                }
+
+                // Step 2: extend parsing environment so body can shadow keywords
+                Assoc parse_env = env;
+                for (auto &b : bindings) {
+                    //parse_env = extend(b.first, Value(nullptr), parse_env);
+                    parse_env = extend(b.first, VoidV(), parse_env);
+                }
+
+                // Step 3: parse body in extended environment
+                if (stxs.size() < 3) {
+                    throw RuntimeError("Let must have a body");
+                }
+                vector<Expr> body_exprs;
+                for (size_t i = 2; i < stxs.size(); i++) {
+                    body_exprs.push_back(stxs[i]->parse(parse_env));
+                }
+
+                Expr body = body_exprs.size() == 1 ? body_exprs[0] : Expr(new Begin(body_exprs));
+                return Expr(new Let(bindings, body));
+            }
                 case E_LETREC: {
-                    if (parameters.size() < 2) {
-                        throw RuntimeError("Wrong number of arguments for letrec");
-                    }
-                    List* bind_list = dynamic_cast<List*>(stxs[1].get());
-                    if (!bind_list) {
-                        throw RuntimeError("Letrec bindings must be a list");
-                    }
-                    vector<pair<string, Expr>> bindings;
-                    for (auto& bind_stx : bind_list->stxs) {
-                        List* bind_pair = dynamic_cast<List*>(bind_stx.get());
-                        if (!bind_pair || bind_pair->stxs.size() != 2) {
-                            throw RuntimeError("Letrec binding must be a pair (variable value)");
-                        }
-                        SymbolSyntax* var_sym = dynamic_cast<SymbolSyntax*>(bind_pair->stxs[0].get());
-                        if (!var_sym) {
-                            throw RuntimeError("Letrec variable must be a symbol");
-                        }
-                        std::string var_name = var_sym->s;
-                        Expr value_expr = bind_pair->stxs[1]->parse(env);
-                        bindings.push_back(mp(var_name, value_expr));
-                    }
-                    if (stxs.size() < 3) {
-                        throw RuntimeError("Letrec must have a body");
-                    }
-                    vector<Expr> body_exprs;
-                    for (size_t i = 2; i < stxs.size(); i++) {
-                        body_exprs.push_back(stxs[i]->parse(env));
-                    }
-                    Expr body = body_exprs.size() == 1 ? body_exprs[0] : Expr(new Begin(body_exprs));
-                    return Expr(new Letrec(bindings, body));
+                if (parameters.size() < 2) {
+                    throw RuntimeError("Wrong number of arguments for letrec");
                 }
+                List* bind_list = dynamic_cast<List*>(stxs[1].get());
+                if (!bind_list) {
+                    throw RuntimeError("Letrec bindings must be a list");
+                }
+            
+                // Step 1: extend parse env FIRST (letrec: variables visible to all RHS)
+                Assoc parse_env = env;
+                vector<pair<string, Expr>> bindings;
+
+                for (auto& bind_stx : bind_list->stxs) {
+                    List* bind_pair = dynamic_cast<List*>(bind_stx.get());
+                    if (!bind_pair || bind_pair->stxs.size() != 2) {
+                        throw RuntimeError("Letrec binding must be a pair (variable value)");
+                    }
+                    SymbolSyntax* var_sym = dynamic_cast<SymbolSyntax*>(bind_pair->stxs[0].get());
+                    if (!var_sym) {
+                        throw RuntimeError("Letrec variable must be a symbol");
+                    }
+                    string var_name = var_sym->s;
+
+                    // Add name first
+                    //parse_env = extend(var_name, Value(nullptr), parse_env);
+                    parse_env = extend(var_name, VoidV(), parse_env);
+                    bindings.push_back(mp(var_name, Expr(nullptr))); // temporary placeholder
+                }
+
+                // Step 2: parse RHS using parse_env
+                for (size_t i = 0; i < bind_list->stxs.size(); i++) {
+                    List* bind_pair = dynamic_cast<List*>(bind_list->stxs[i].get());
+                    Expr value_expr = bind_pair->stxs[1]->parse(parse_env);
+                    bindings[i].second = value_expr;
+                }
+
+                // Step 3: parse body with parse_env
+                if (stxs.size() < 3) {
+                    throw RuntimeError("Letrec must have a body");
+                }
+                vector<Expr> body_exprs;
+                for (size_t i = 2; i < stxs.size(); i++) {
+                    body_exprs.push_back(stxs[i]->parse(parse_env));
+                }
+                Expr body = body_exprs.size() == 1 ? body_exprs[0] : Expr(new Begin(body_exprs));
+                return Expr(new Letrec(bindings, body));
+            }
                 case E_SET: {
                     if (parameters.size() != 2) {
                         throw RuntimeError("Wrong number of arguments for set!");
@@ -320,7 +355,7 @@ Expr List::parse(Assoc &env) {
         }
 
         // 检查是否是原始操作
-        if (primitives.count(op) != 0) {
+        /*if (primitives.count(op) != 0) {
 
             //std::cerr << "DEBUG: '" << op << "' is a primitive operation" << std::endl;
 
@@ -457,7 +492,55 @@ Expr List::parse(Assoc &env) {
                 }
                 return Expr(new Apply(Expr(new Var(op)), args));
             }
-        }
+        }*/
+       // 检查是否是原始操作
+if (primitives.count(op) != 0) {
+
+    vector<Expr> parameters;
+    for (size_t i = 1; i < stxs.size(); i++) {
+        parameters.push_back(stxs[i]->parse(env));
+    }
+
+    ExprType op_type = primitives[op];
+
+    // 所有 primitive 运算符都统一解析为 Apply
+    // 即： (op arg1 arg2 ...) → Apply( Var(op), [args...] )
+
+    switch (op_type) {
+        case E_PLUS:
+        case E_MINUS:
+        case E_MUL:
+        case E_DIV:
+        case E_MODULO:
+        case E_LT:
+        case E_LE:
+        case E_EQ:
+        case E_GE:
+        case E_GT:
+        case E_LIST:
+        case E_CONS:
+        case E_CAR:
+        case E_CDR:
+        case E_SETCAR:
+        case E_SETCDR:
+        case E_NOT:
+        case E_AND:
+        case E_OR:
+        case E_BOOLQ:
+        case E_INTQ:
+        case E_NULLQ:
+        case E_PAIRQ:
+        case E_PROCQ:
+        case E_SYMBOLQ:
+        case E_STRINGQ:
+        case E_LISTQ:
+            return Expr(new Apply(Expr(new Var(op)), parameters));
+
+        default:
+            // 其他未列出的 primitive 同样作为函数调用处理
+            return Expr(new Apply(Expr(new Var(op)), parameters));
+    }
+}
 
         // 默认情况：解析为函数应用
         vector<Expr> args;

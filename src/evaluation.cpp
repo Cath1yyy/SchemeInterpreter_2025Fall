@@ -270,77 +270,59 @@ static Value convertSyntaxListToValue(List* lst) {
 }
 //======================================
 
-Value Var::eval(Assoc &e) { // evaluation of variable  //debug later!!!
-    if (primitives.count(x)) {
-            static std::map<ExprType, std::pair<Expr, std::vector<std::string>>> primitive_map = {
-                    {E_VOID,     {new MakeVoid(), {}}},
-                    {E_EXIT,     {new Exit(), {}}},
-                    {E_BOOLQ,    {new IsBoolean(new Var("parm")), {"parm"}}},
-                    {E_INTQ,     {new IsFixnum(new Var("parm")), {"parm"}}},
-                    {E_NULLQ,    {new IsNull(new Var("parm")), {"parm"}}},
-                    {E_PAIRQ,    {new IsPair(new Var("parm")), {"parm"}}},
-                    {E_PROCQ,    {new IsProcedure(new Var("parm")), {"parm"}}},
-                    {E_SYMBOLQ,  {new IsSymbol(new Var("parm")), {"parm"}}},
-                    {E_STRINGQ,  {new IsString(new Var("parm")), {"parm"}}},
-                    {E_LISTQ,    {new IsList(new Var("parm")), {"parm"}}},
-                    {E_DISPLAY,  {new Display(new Var("parm")), {"parm"}}},
-                    {E_PLUS,     {new PlusVar({}),  {}}},
-                    {E_MINUS,    {new MinusVar({}), {}}},
-                    {E_MUL,      {new MultVar({}),  {}}},
-                    {E_DIV,      {new DivVar({}),   {}}},
-                    {E_MODULO,   {new Modulo(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
-                    {E_EXPT,     {new Expt(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
-                    {E_EQQ,      {new IsEq(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
-                    {E_LT,       {new LessVar({}), {}}},
-                    {E_LE,       {new LessEqVar({}), {}}},
-                    {E_EQ,       {new EqualVar({}), {}}},
-                    {E_GE,       {new GreaterEqVar({}), {}}},
-                    {E_GT,       {new GreaterVar({}), {}}},
-                    {E_CONS,     {new Cons(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
-                    {E_CAR,      {new Car(new Var("parm")), {"parm"}}},
-                    {E_CDR,      {new Cdr(new Var("parm")), {"parm"}}},
-                    {E_LIST,     {new ListFunc({}), {}}},
-                    {E_SETCAR,   {new SetCar(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
-                    {E_SETCDR,   {new SetCdr(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
-                    {E_NOT,      {new Not(new Var("parm")), {"parm"}}},
-                    {E_AND,      {new AndVar({}), {}}},
-                    {E_OR,       {new OrVar({}), {}}}
-            };
-            auto it = primitive_map.find(primitives[x]);
-            //TOD0:to PASS THE parameters correctly;
-            //COMPLETE THE CODE WITH THE HINT IN IF SENTENCE WITH CORRECT RETURN VALUE
-            if (it != primitive_map.end()) {
-
-                //TODO
-                return ProcedureV(it->second.second, it->second.first, e);
-
-            }
-    }
-
-    // TODO: TO identify the invalid variable
-    if (!e.get()) {
-        //std::cerr << "ERROR: Null environment in Var::eval for variable: " << x << std::endl;
-        throw RuntimeError("Null environment");
-    }
-    // We request all valid variable just need to be a symbol,you should promise:
-    //The first character of a variable name cannot be a digit or any character from the set: {.@}
-    //If a string can be recognized as a number, it will be prioritized as a number. For example: 1, -1, +123, .123, +124., 1e-3
-    //Variable names can overlap with primitives and reserve_words
-    //Variable names can contain any non-whitespace characters except #, ', ", `, but the first character cannot be a digit
-    //When a variable is not defined in the current scope, your interpreter should output RuntimeError
-    
+Value Var::eval(Assoc &e) {
+    // 1) 先查环境 —— 用户绑定具有最高优先级
     Value matched_value = find(x, e);
-
-    //===================================
-    //std::cerr << "DEBUG: Looking up '" << x << "' in environment, result: "  << (matched_value.get() != nullptr ? "FOUND" : "NOT FOUND") << std::endl;
-    //===================================
-
     if (matched_value.get() != nullptr) {
         return matched_value;
     }
-    // 变量未定义，抛出运行时错误
-    throw RuntimeError("Undefined variable: " + x);  //do we need this??
-    
+
+    // 2) 再看是否是 primitive 名字
+    if (primitives.count(x)) {
+        static std::map<ExprType, std::pair<Expr, std::vector<std::string>>> primitive_map = {
+                {E_VOID,     {new MakeVoid(), {}}},
+                {E_EXIT,     {new Exit(), {}}},
+                {E_BOOLQ,    {new IsBoolean(new Var("parm")), {"parm"}}},
+                {E_INTQ,     {new IsFixnum(new Var("parm")), {"parm"}}},
+                {E_NULLQ,    {new IsNull(new Var("parm")), {"parm"}}},
+                {E_PAIRQ,    {new IsPair(new Var("parm")), {"parm"}}},
+                {E_PROCQ,    {new IsProcedure(new Var("parm")), {"parm"}}},
+                {E_SYMBOLQ,  {new IsSymbol(new Var("parm")), {"parm"}}},
+                {E_STRINGQ,  {new IsString(new Var("parm")), {"parm"}}},
+                {E_LISTQ,    {new IsList(new Var("parm")), {"parm"}}},
+                {E_DISPLAY,  {new Display(new Var("parm")), {"parm"}}},
+                {E_PLUS,     {new PlusVar({}),  {}}},
+                {E_MINUS,    {new MinusVar({}), {}}},
+                {E_MUL,      {new MultVar({}),  {}}},
+                {E_DIV,      {new DivVar({}),   {}}},
+                {E_MODULO,   {new Modulo(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
+                {E_EXPT,     {new Expt(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
+                {E_EQQ,      {new IsEq(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
+                {E_LT,       {new LessVar({}), {}}},
+                {E_LE,       {new LessEqVar({}), {}}},
+                {E_EQ,       {new EqualVar({}), {}}},
+                {E_GE,       {new GreaterEqVar({}), {}}},
+                {E_GT,       {new GreaterVar({}), {}}},
+                {E_CONS,     {new Cons(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
+                {E_CAR,      {new Car(new Var("parm")), {"parm"}}},
+                {E_CDR,      {new Cdr(new Var("parm")), {"parm"}}},
+                {E_LIST,     {new ListFunc({}), {}}},
+                {E_SETCAR,   {new SetCar(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
+                {E_SETCDR,   {new SetCdr(new Var("parm1"), new Var("parm2")), {"parm1","parm2"}}},
+                {E_NOT,      {new Not(new Var("parm")), {"parm"}}},
+                {E_AND,      {new AndVar({}), {}}},
+                {E_OR,       {new OrVar({}), {}}}
+        };
+
+        ExprType t = primitives[x];
+        auto it = primitive_map.find(t);
+        if (it != primitive_map.end()) {
+            return ProcedureV(it->second.second, it->second.first, empty());
+        }
+    }
+
+    // 3) 未绑定变量 -> 运行时错误
+    throw RuntimeError("Undefined variable: " + x);
 }
 
 Value Plus::evalRator(const Value &rand1, const Value &rand2) { // +  //check later
@@ -877,53 +859,103 @@ Value Lambda::eval(Assoc &env) {
     return ProcedureV(x, e, env);
 }
 
-Value Apply::eval(Assoc &e) {  //check later!!1
+
+/*Value Apply::eval(Assoc &e) {
+    // evaluate the rator (should produce a procedure)
     Value proc_val = rator->eval(e);
-    //std::cerr << "DEBUG: Applying procedure, type: " << proc_val->v_type << std::endl;
     if (proc_val->v_type != V_PROC) {
         throw RuntimeError("Attempt to apply a non-procedure");
     }
 
-    //TODO: TO COMPLETE THE CLOSURE LOGIC
+    // get Procedure pointer (the function we are applying)
     Procedure* clos_ptr = dynamic_cast<Procedure*>(proc_val.get());
-    if (clos_ptr == nullptr) {  //check if nullptr, throw error instead of segmentation fault
+    if (clos_ptr == nullptr) {
         throw RuntimeError("Invalid procedure object");
     }
 
-    // 检查参数数量
-    if (clos_ptr->parameters.size() != rand.size()) {
-        throw RuntimeError("Wrong number of arguments");
+    // Evaluate actual argument expressions first
+    std::vector<Value> args;
+    for (auto &expr : rand) {  // rand: argument expressions
+        args.push_back(expr->eval(e));
     }
 
-
-    // 检查参数列表是否有效
-    if (clos_ptr->parameters.size() != rand.size()) {
-        throw RuntimeError("Wrong number of arguments");
+    // Case A: body is a primitive Variadic operator node (e.g. +, *, ...)
+    if (Variadic* varNode = dynamic_cast<Variadic*>(clos_ptr->body.get())) {
+        return varNode->evalRator(args);
     }
-    
-    //TODO: TO COMPLETE THE ARGUMENT PARSER LOGIC
-    // 对所有的实际参数表达式进行求值，得到实参列表
+
+    // Case B: body is a Binary primitive node (expects exactly 2 args)
+    if (Binary* binNode = dynamic_cast<Binary*>(clos_ptr->body.get())) {
+        if (args.size() != 2) throw RuntimeError("Wrong number of arguments for binary operator");
+        return binNode->evalRator(args[0], args[1]);
+    }
+
+    // Case C: body is a Unary primitive node (expects exactly 1 arg)
+    if (Unary* unNode = dynamic_cast<Unary*>(clos_ptr->body.get())) {
+        if (args.size() != 1) throw RuntimeError("Wrong number of arguments for unary operator");
+        return unNode->evalRator(args[0]);
+    }
+
+    // Otherwise it's a user-defined lambda (closure)
+    if (clos_ptr->parameters.size() != args.size()) {
+        throw RuntimeError("Wrong number of arguments for lambda");
+    }
+
+    // Create new env from the closure env and bind parameters to arguments
+    Assoc param_env = clos_ptr->env;
+    for (size_t i = 0; i < clos_ptr->parameters.size(); ++i) {
+        param_env = extend(clos_ptr->parameters[i], args[i], param_env);
+    }
+
+    // Evaluate the lambda body in the extended environment
+    return clos_ptr->body->eval(param_env);
+}*/
+Value Apply::eval(Assoc &e) {
+    // 1) 求值 rator
+    Value proc_val = rator->eval(e);
+    if (proc_val->v_type != V_PROC) {
+        throw RuntimeError("Attempt to apply a non-procedure");
+    }
+
+    // 2) 从 Value 中取 Procedure 指针
+    Procedure* clos_ptr = dynamic_cast<Procedure*>(proc_val.get());
+    if (clos_ptr == nullptr) {
+        throw RuntimeError("Invalid procedure object");
+    }
+
+    // 3) 先求值所有实际参数（按你原来风格：rand 存放参数表达式）
     std::vector<Value> args;
     for (auto &expr : rand) {
         args.push_back(expr->eval(e));
     }
-    /*std::vector<Value> args;
-    if (auto varNode = dynamic_cast<Variadic*>(clos_ptr->e.get())) {
-        //TODO
-        throw RuntimeError("Invalid procedure object");
-    }*/
 
-    /*if (args.size() != clos_ptr->parameters.size())
-        throw RuntimeError("Wrong number of arguments");*/
-    
-    //TODO: TO COMPLETE THE PARAMETERS' ENVIRONMENT LOGIC
-    // 扩展环境：在闭包的词法环境基础上，将形参与实参绑定
-    Assoc param_env = clos_ptr->env;
-    for (size_t i = 0; i < clos_ptr->parameters.size(); i++) {
+    // 4) 如果 closure->body 本身是 primitive 节点（Variadic/Binary/Unary），直接调用
+    if (Variadic* varNode = dynamic_cast<Variadic*>(clos_ptr->body.get())) {
+        return varNode->evalRator(args);
+    }
+
+    if (Binary* binNode = dynamic_cast<Binary*>(clos_ptr->body.get())) {
+        if (args.size() != 2) throw RuntimeError("Wrong number of arguments for binary operator");
+        return binNode->evalRator(args[0], args[1]);
+    }
+
+    if (Unary* unNode = dynamic_cast<Unary*>(clos_ptr->body.get())) {
+        if (args.size() != 1) throw RuntimeError("Wrong number of arguments for unary operator");
+        return unNode->evalRator(args[0]);
+    }
+
+    // 5) 否则当作用户定义的 lambda（闭包）来执行：检查形参数目并在 clos_ptr->env 上扩展绑定
+    if (clos_ptr->parameters.size() != args.size()) {
+        throw RuntimeError("Wrong number of arguments for lambda");
+    }
+
+    Assoc param_env = clos_ptr->env; // 使用闭包捕获的词法环境
+    for (size_t i = 0; i < clos_ptr->parameters.size(); ++i) {
         param_env = extend(clos_ptr->parameters[i], args[i], param_env);
     }
-    //std::cerr << "DEBUG: About to evaluate procedure body in closure env" << std::endl;
-    return clos_ptr->e->eval(param_env);
+
+    // 6) 在扩展后的环境中求值闭包体
+    return clos_ptr->body->eval(param_env);
 }
 
 /*Value Define::eval(Assoc &env) {
@@ -959,8 +991,13 @@ Value Define::eval(Assoc &env) {
     return VoidV();
 }
 
-Value Let::eval(Assoc &env) {
-
+/*Value Let::eval(Assoc &env) {
+    // 检查是否有保留字
+    for (auto &binding : bind) {
+        if (reserved_words.count(binding.first)) {
+            throw RuntimeError("Cannot bind reserved word: " + binding.first);
+        }
+    }
     //TODO: To complete the let logic
     Assoc new_env = env;
     for (auto &binding : bind) {
@@ -969,6 +1006,24 @@ Value Let::eval(Assoc &env) {
     }
     return body->eval(new_env);
 
+}*/
+Value Let::eval(Assoc &env) {
+    // 检查是否有保留字
+    for (auto &binding : bind) {
+        if (reserved_words.count(binding.first)) {
+            throw RuntimeError("Cannot bind reserved word: " + binding.first);
+        }
+    }
+
+    // 创建新的环境进行扩展
+    Assoc new_env = env;
+    for (auto &binding : bind) {
+        Value val = binding.second->eval(env); // 在现有环境中求值
+        new_env = extend(binding.first, val, new_env); // 将变量及其值扩展到新环境
+    }
+
+    // 在新的环境中执行 let body
+    return body->eval(new_env);
 }
 
 Value Letrec::eval(Assoc &env) {
@@ -990,7 +1045,7 @@ Value Letrec::eval(Assoc &env) {
 
 }
 
-Value Set::eval(Assoc &env) {
+/*Value Set::eval(Assoc &env) {
     //TODO: To complete the set logic
     // 修改变量的值
     Value value = e->eval(env);
@@ -1007,6 +1062,29 @@ Value Set::eval(Assoc &env) {
     
     // 如果变量未定义，抛出错误
     throw RuntimeError("set!: cannot set variable before definition: " + var);
+}*/
+/*Value Set::eval(Assoc &env) {
+    for (Assoc i = env; i.get() != nullptr; i = i->next) {
+        if (i->x == var) {
+            Value v = e->eval(env);
+            i->v = v;
+            return v;
+        }
+    }
+    throw RuntimeError("set!: variable not found: " + var);
+}*/
+Value Set::eval(Assoc &env) {
+    for (Assoc i = env; i.get() != nullptr; i = i->next) {
+        if (i->x == var) {
+            if (reserved_words.count(var)) {
+                throw RuntimeError("Cannot modify reserved word: " + var);
+            }
+            Value v = e->eval(env);
+            i->v = v;
+            return v;
+        }
+    }
+    throw RuntimeError("set!: variable not found: " + var);
 }
 
 Value Display::evalRator(const Value &rand) { // display function
