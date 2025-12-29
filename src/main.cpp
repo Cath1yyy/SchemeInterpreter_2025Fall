@@ -42,64 +42,97 @@ bool isExplicitVoidCall(Expr expr) {
             }
         }
     }
+    
     return false;
 }
 
-// 检查是否是应该输出结果的情况
-bool shouldOutputValue(Expr expr, Value val) {
-    // 如果是显式 void 调用，总是输出
-    if (isExplicitVoidCall(expr)) {
-        return true;
+/**
+ * @brief Batch processing of multiple define statements supporting mutual recursion
+ */
+Value evaluateDefineGroup(const std::vector<std::pair<std::string, Expr>>& defines, Assoc &env) {
+    // 第一阶段：为所有变量创建占位符绑定
+    for (const auto& def : defines) {
+        if (primitives.count(def.first) || reserved_words.count(def.first)) {
+            throw RuntimeError("Cannot redefine primitive: " + def.first);
+        }
+        env = extend(def.first, Value(nullptr), env);
     }
     
-    // 如果是 void 值但不是显式调用，不输出
-    if (val->v_type == V_VOID) {
-        return false;
+    // 第二阶段：求值所有表达式并更新绑定
+    Value last_result = VoidV();
+    for (const auto& def : defines) {
+        Value val = def.second->eval(env);
+        modify(def.first, val, env);
+        last_result = VoidV(); // define 总是返回 void
     }
     
-    // 如果是终止信号，不输出
-    if (val->v_type == V_TERMINATE) {
-        return false;
-    }
-    
-    // 检查是否是特殊形式，这些通常不应该输出结果
-    if (dynamic_cast<Define*>(expr.get()) != nullptr ||
-        dynamic_cast<Set*>(expr.get()) != nullptr) {
-        return false;
-    }
-    
-    // 其他情况正常输出
-    return true;
+    return last_result;
 }
 
 void REPL(){
-    // read - evaluation - print loop
+    // read - evaluation - print loop with define grouping
     Assoc global_env = empty();
-
+    std::vector<std::pair<std::string, Expr>> pending_defines;
     
-
     while (1){
         #ifndef ONLINE_JUDGE
             std::cout << "scm> ";
         #endif
-        Syntax stx = readSyntax(std :: cin); // read
+        Syntax stx = readSyntax(std::cin); // read
         try{
-            Expr expr = stx -> parse(global_env); // parse
-            // stx -> show(std :: cout); // syntax print
-            Value val = expr -> eval(global_env);
-            if (val -> v_type == V_TERMINATE)
-                break;
-            // 只有应该输出时才输出
-            if (shouldOutputValue(expr, val)) {
-                val -> show(std :: cout); // value print
+            Expr expr = stx->parse(global_env); // parse
+            
+            // 检查是否是 define 表达式
+            Define* define_expr = dynamic_cast<Define*>(expr.get());
+            if (define_expr != nullptr) {
+                // 收集 define 表达式
+                pending_defines.push_back({define_expr->var, define_expr->e});
+                // 不立即求值，继续读取下一个表达式
+                continue;
+            } else {
+                // 不是 define 表达式
+                // 如果有待处理的 define，先批量处理它们
+                if (!pending_defines.empty()) {
+                    evaluateDefineGroup(pending_defines, global_env);
+                    pending_defines.clear();
+                }
+                
+                // 处理当前的非 define 表达式
+                Value val = expr->eval(global_env);
+                if (val->v_type == V_TERMINATE)
+                    break;
+                
+                // 简化的显示逻辑：
+                // 如果结果是 void，只有在显式调用 (void) 或在允许的嵌套结构中时才显示
+                if (val->v_type == V_VOID) {
+                    if (isExplicitVoidCall(expr)) {
+                        val->show(std::cout);
+                        puts("");
+                    }
+                    // 其他返回 void 的表达式不输出任何内容
+                } else {
+                    // 非 void 结果正常显示
+                    val->show(std::cout);
+                    puts("");
+                }
             }
-            //val -> show(std :: cout); // value print
         }
         catch (const RuntimeError &RE){
-            // std :: cout << RE.message();
-            std :: cout << "RuntimeError";
+            // 如果出错，清空待处理的 define
+            pending_defines.clear();
+            std::cout << "RuntimeError";
+            puts("");
         }
-        puts("");
+    }
+    
+    // 如果程序结束时还有待处理的 define，处理它们
+    if (!pending_defines.empty()) {
+        try {
+            evaluateDefineGroup(pending_defines, global_env);
+        } catch (const RuntimeError &RE) {
+            std::cout << "RuntimeError in final defines";
+            puts("");
+        }
     }
 }
 

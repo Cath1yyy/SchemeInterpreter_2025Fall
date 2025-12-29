@@ -243,8 +243,8 @@ Value PairV(const Value &car, const Value &cdr) {
 }
 
 // Procedure
-Procedure::Procedure(const std::vector<std::string> &xs, const Expr &b, const Assoc &env)  //before: const Expr &e
-    : ValueBase(V_PROC), parameters(xs), body(b), env(env) {}   //before: e(e)
+Procedure::Procedure(const std::vector<std::string> &xs, const Expr &e, const Assoc &env)
+    : ValueBase(V_PROC), parameters(xs), e(e), env(env) {}
 
 void Procedure::show(std::ostream &os) {
     os << "#<procedure>";
