@@ -35,8 +35,7 @@ Expr Number::parse(Assoc &env) {
     return Expr(new Fixnum(n));
 }
 
-Expr RationalSyntax::parse(Assoc &env) {  //check later
-    //TODO: complete the rational parser
+Expr RationalSyntax::parse(Assoc &env) {
     return Expr(new RationalNum(numerator, denominator));
 }
 
@@ -101,7 +100,7 @@ Expr List::parse(Assoc &env) {
         } else if (op_type == E_DIV) {
             return Expr(new DivVar(parameters));
         } else if (op_type == E_MODULO) {
-            if (parameters.size() != 2) {  //检查参数数量是否正确
+            if (parameters.size() != 2) {  //检查参数数量
                 throw RuntimeError("Wrong number of arguments for modulo");
             }
             return Expr(new Modulo(parameters[0], parameters[1]));
@@ -204,10 +203,9 @@ Expr List::parse(Assoc &env) {
 			case E_DEFINE:{
 				if (stxs.size() < 3) throw RuntimeError("wrong parameter number for define");
 			
-				// 检查第二个元素是否为List（函数定义语法糖）
+				// 检查第二个元素是否为List
 				List *func_def = dynamic_cast<List*>(stxs[1].get());
 				if (func_def != nullptr) {
-					// 语法糖: (define (func-name param1 param2 ...) body...)
 					if (func_def->stxs.empty()) {
 						throw RuntimeError("Invalid function definition: empty parameter list");
 					}
@@ -243,7 +241,6 @@ Expr List::parse(Assoc &env) {
 						return Expr(new Define(func_name->s, lambda_expr));
 					}
 				} else {
-					// 原有语法: (define var-name expression)
 					if (stxs.size() != 3){
                         throw RuntimeError("Wrong number of arguments for define");
                     }
