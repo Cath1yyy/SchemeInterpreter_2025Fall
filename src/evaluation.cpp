@@ -390,32 +390,6 @@ Value MultVar::evalRator(const std::vector<Value> &args) { // * with multiple ar
     return result;
 }
 
-// GCD 辅助函数（用于有理数化简）
-static int gcd_helper(int a, int b) {
-    if (a < 0) a = -a;
-    if (b < 0) b = -b;
-    while (b != 0) {
-        int temp = b;
-        b = a % b;
-        a = temp;
-    }
-    return a;
-}
-
-// 有理数乘法
-static Value multiply_rationals(int num1, int den1, int num2, int den2) {
-    int new_num = num1 * num2;
-    int new_den = den1 * den2;
-    int g = gcd_helper(new_num, new_den);
-    new_num /= g;
-    new_den /= g;
-    if (new_den < 0) {
-        new_num = -new_num;
-        new_den = -new_den;
-    }
-    return RationalV(new_num, new_den);
-}
-
 Value DivVar::evalRator(const std::vector<Value> &args) { // / with multiple args
     
     if (args.empty()) throw RuntimeError("/ requires at least one argument");
@@ -617,30 +591,27 @@ Value IsList::evalRator(const Value &rand) { // list?
     // list? 检查值是否为正常列表（包括空列表）
     // 正常列表是以 null 结尾的 pair 链，或者就是 null
     if (rand->v_type == V_NULL) {
-        return BooleanV(true); // 空列表是列表
+        return BooleanV(true); // 空列表
     }
-    
     if (rand->v_type != V_PAIR) {
         return BooleanV(false); // 不是 pair 就不是列表
     }
     
-    // 使用快慢指针检测环形列表并找到列表末尾
-    Value slow = rand;
-    Value fast = rand;
+    // 快慢指针检测环形列表并找到列表末尾
+    Value slow = rand, fast = rand;
     
     while (true) {
-        // 快指针前进两步
-        if (fast->v_type != V_PAIR) break;
+        if (fast->v_type != V_PAIR)
+            break;
         fast = dynamic_cast<Pair*>(fast.get())->cdr;
-        if (fast->v_type != V_PAIR) break;
+        if (fast->v_type != V_PAIR)
+            break;
         fast = dynamic_cast<Pair*>(fast.get())->cdr;
         
-        // 慢指针前进一步
         slow = dynamic_cast<Pair*>(slow.get())->cdr;
         
-        // 检测环形
         if (slow.get() == fast.get()) {
-            return BooleanV(false); // 不是正常列表
+            return BooleanV(false);
         }
     }
     
@@ -683,19 +654,19 @@ Value SetCdr::evalRator(const Value &rand1, const Value &rand2) { // set-cdr!
 }
 
 Value IsEq::evalRator(const Value &rand1, const Value &rand2) { // eq?
-    // 检查类型是否为 Integer
+    // Integer
     if (rand1->v_type == V_INT && rand2->v_type == V_INT) {
         return BooleanV((dynamic_cast<Integer*>(rand1.get())->n) == (dynamic_cast<Integer*>(rand2.get())->n));
     }
-    // 检查类型是否为 Boolean
+    // Boolean
     else if (rand1->v_type == V_BOOL && rand2->v_type == V_BOOL) {
         return BooleanV((dynamic_cast<Boolean*>(rand1.get())->b) == (dynamic_cast<Boolean*>(rand2.get())->b));
     }
-    // 检查类型是否为 Symbol
+    // Symbol
     else if (rand1->v_type == V_SYM && rand2->v_type == V_SYM) {
         return BooleanV((dynamic_cast<Symbol*>(rand1.get())->s) == (dynamic_cast<Symbol*>(rand2.get())->s));
     }
-    // 检查类型是否为 Null 或 Void
+    // Null 或 Void
     else if ((rand1->v_type == V_NULL && rand2->v_type == V_NULL) ||
              (rand1->v_type == V_VOID && rand2->v_type == V_VOID)) {
         return BooleanV(true);
@@ -733,6 +704,7 @@ Value IsString::evalRator(const Value &rand) { // string?
 }
 
 Value Begin::eval(Assoc &e) {
+    // 参考github示范代码
     if (es.size() == 0) return VoidV();
     
     // 查找连续的内部定义
@@ -863,10 +835,8 @@ Value Not::evalRator(const Value &rand) { // not
 }
 
 Value If::eval(Assoc &e) {
-    // if expression (Scheme: 只有 #f 为假，其余都为真)
+    // 只有 #f 为假，其余都为真
     Value valueof_condition = cond->eval(e);
-    // 只有当条件是 Boolean 类型且值为 false 时，才返回 alter 分支
-    // 其他所有情况（包括 null、数字、符号等）都返回 conseq 分支
     if (valueof_condition->v_type == V_BOOL && 
         dynamic_cast<Boolean*>(valueof_condition.get())->b == false) {
         return alter->eval(e);
@@ -876,7 +846,7 @@ Value If::eval(Assoc &e) {
 }
 
 Value Cond::eval(Assoc &env) {
-    // cond 表达式求值
+
     for (const auto &clause : clauses) {
         if (clause.empty()) continue;
         
@@ -923,7 +893,7 @@ Value Cond::eval(Assoc &env) {
     return VoidV();
 }
 
-Value Lambda::eval(Assoc &env) { // lambda expression
+Value Lambda::eval(Assoc &env) {
     Assoc new_env = env;
     return ProcedureV(x, e, new_env);
 }
@@ -946,7 +916,6 @@ Value Apply::eval(Assoc &e) {
         throw RuntimeError("Wrong number of arguments");
     }
         
-
     // 在闭包环境基础上添加参数绑定
     Assoc param_env = clos_ptr->env;
     for (int i = 0; i < clos_ptr->parameters.size(); i++) {
@@ -963,16 +932,15 @@ Value Define::eval(Assoc &env) {
         throw RuntimeError("Cannot redefine primitive: " + var);
     }
     
-    // 为了支持递归函数，先在环境中创建一个占位符绑定
+    // 支持递归函数，先在环境中创建一个占位符绑定
     env = extend(var, Value(nullptr), env);
     
-    // 计算表达式的值（现在环境中已经有了该变量的绑定）
+    // 计算表达式的值
     Value val = e->eval(env);
     
     // 更新绑定为实际值
     modify(var, val, env);
     
-    // define 返回 void
     return VoidV();
 }
 
@@ -989,57 +957,53 @@ Value Let::eval(Assoc &env) {
 }
 
 Value Letrec::eval(Assoc &env) {
-    // 1. 在当前作用域的基础上创建一个新作用域 env1
+    // 创建新作用域 env1
     Assoc env1 = env;
 
-    // 2. 将 var* 与 Value(nullptr) 绑定并引入 env1
+    // 将 var* 与 Value(nullptr) 绑定并引入 env1
     for (const auto &binding : bind) {
         env1 = extend(binding.first, Value(nullptr), env1);
     }
 
     std::vector<std::pair<std::string,Value>> bindings;
 
-    // 3. 在 env1 下对 expr* 求值
+    // 在 env1 下对 expr* 求值
     for (const auto &binding : bind) {
         bindings.push_back(std::make_pair(binding.first, binding.second->eval(env1)));
     }
 
-    // 4. 在 env1 的基础上创建一个新作用域 env2
+    // 在 env1 的基础上创建一个新作用域 env2
     Assoc env2 = env1;
 
-    // 5. 将 var* 与其对应的值绑定并引入 env2
+    // 将 var* 与其对应的值绑定并引入 env2
     for (const auto &binding: bindings) {
         modify(binding.first, binding.second, env2);
     }
 
-    // 6. 最后在 env2 下对 body 求值
+    // 在 env2 下对 body 求值
     return body->eval(env2);
 }
 
 Value Set::eval(Assoc &env) {
-    // 检查变量是否存在
-    Value var_value = find(var, env);
+    
+    Value var_value = find(var, env);  // 检查变量是否存在
     if (var_value.get() == nullptr) {
         throw RuntimeError("Undefined variable in set!: " + var);
     }
     
-    // 计算新值
     Value new_val = e->eval(env);
     
     // 修改环境中的变量值
     modify(var, new_val, env);
-    
-    // set! 返回 void
+
     return VoidV();
 }
 
 Value Display::evalRator(const Value &rand) { // display function
     if (rand->v_type == V_STRING) {
-        // 对于字符串，输出内容但不包括引号
         String* str_ptr = dynamic_cast<String*>(rand.get());
         std::cout << str_ptr->s;
     } else {
-        // 对于其他类型，使用标准显示方法
         rand->show(std::cout);
     }
     
